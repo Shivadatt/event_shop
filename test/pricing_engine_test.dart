@@ -32,7 +32,8 @@ void main() {
       final r = PricingEngine.priceFor(product: product, qty: 10);
       expect(r.unitPricePaise, 10000);
       expect(r.lineTotalPaise, 100000);
-      expect(r.savedPaise, 1000);
+      // 10 units × (₹110 − ₹100) = ₹100 of slab saving, not ₹10.
+      expect(r.savedPaise, 10000);
     });
 
     test('20 packs stay in the middle slab', () {
@@ -44,7 +45,9 @@ void main() {
     test('21 packs drop to the open-ended slab', () {
       final r = PricingEngine.priceFor(product: product, qty: 21);
       expect(r.unitPricePaise, 9500);
-      expect(r.lineTotalPaise, 199950);
+      // 21 × ₹95 = ₹1,995, exactly the brief's example: the cheaper rate covers every unit.
+      expect(r.lineTotalPaise, 199500);
+      expect(r.savedPaise, 31500);
     });
 
     test('the gap between 9 and 10 has no unpriced quantity', () {
@@ -58,7 +61,7 @@ void main() {
     });
 
     test('below the first band the buyer pays retail, not the nearest discount', () {
-      final p = const Product(
+      const p = Product(
         id: 'p2',
         name: 'Only bulk discounted',
         retailPricePaise: 50000,
@@ -149,16 +152,17 @@ void main() {
       ];
       final totals = CartTotals.from(lines, couponDiscountPaise: 5000);
 
-      expect(totals.subtotalPaise, 199950 + 11000);
-      expect(totals.slabSavingsPaise, 21050);
+      expect(totals.subtotalPaise, 199500 + 11000);
+      // 21 × ₹15 saved on the bulk line; the single pack saves nothing.
+      expect(totals.slabSavingsPaise, 31500);
       expect(totals.couponDiscountPaise, 5000);
-      expect(totals.grandTotalPaise, 199950 + 11000 - 5000);
+      expect(totals.grandTotalPaise, 199500 + 11000 - 5000);
     });
 
     test('a coupon cannot exceed the cart', () {
       final totals = CartTotals.from(
         <PriceResolution>[
-          PriceResolution(
+          const PriceResolution(
             qty: 1,
             unitPricePaise: 1000,
             lineTotalPaise: 1000,
@@ -173,7 +177,7 @@ void main() {
     });
 
     test('GST-exclusive adds tax on the discounted subtotal, inclusive adds none', () {
-      final line = const PriceResolution(
+      const line = PriceResolution(
         qty: 2,
         unitPricePaise: 10000,
         lineTotalPaise: 20000,

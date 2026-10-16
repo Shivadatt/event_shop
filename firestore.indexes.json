@@ -1,0 +1,68 @@
+{
+  "//": "Every read path in lib/data/providers/catalog_query_builder.dart and functions/index.js must be backed by one of these composite indexes. Single-field equality/range queries use Firestore's automatic single-field indexes and are not listed here. Field order matters: equality filters first, then the range, then orderBy keys.",
+  "indexes": [
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categorySlug", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categoryId", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categoryId", "order": "ASCENDING" }, { "field": "retailPricePaise", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categoryId", "order": "ASCENDING" }, { "field": "retailPricePaise", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categoryId", "order": "ASCENDING" }, { "field": "soldCount", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "categoryId", "order": "ASCENDING" }, { "field": "ratingAvg", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "categoryId", "order": "ASCENDING" }, { "field": "status", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "retailPricePaise", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "retailPricePaise", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "soldCount", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "ratingAvg", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "name", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "isFeatured", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "isNewArrival", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "isBestSeller", "order": "ASCENDING" }, { "field": "soldCount", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "isWholesaleOnly", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "sku", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "slug", "order": "ASCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "updatedAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "products", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "stockQty", "order": "ASCENDING" } ] },
+
+    { "collectionGroup": "product_variants", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "order", "order": "ASCENDING" } ] },
+    { "collectionGroup": "product_variants", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "isActive", "order": "ASCENDING" }, { "field": "order", "order": "ASCENDING" } ] },
+
+    { "collectionGroup": "categories", "queryScope": "COLLECTION", "indexes": [ { "field": "isActive", "order": "ASCENDING" }, { "field": "order", "order": "ASCENDING" } ] },
+    { "collectionGroup": "categories", "queryScope": "COLLECTION", "indexes": [ { "field": "parentId", "order": "ASCENDING" }, { "field": "order", "order": "ASCENDING" } ] },
+    { "collectionGroup": "categories", "queryScope": "COLLECTION", "indexes": [ { "field": "slug", "order": "ASCENDING" } ] },
+
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "indexes": [ { "field": "userId", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "indexes": [ { "field": "paymentStatus", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "paymentStatus", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "indexes": [ { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "reviews", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "reviews", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "uid", "order": "ASCENDING" } ] },
+    { "collectionGroup": "reviews", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "inventory_movements", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "inventory_movements", "queryScope": "COLLECTION", "indexes": [ { "field": "productId", "order": "ASCENDING" }, { "field": "variantId", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "audit_logs", "queryScope": "COLLECTION", "indexes": [ { "field": "entityType", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "audit_logs", "queryScope": "COLLECTION", "indexes": [ { "field": "action", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "audit_logs", "queryScope": "COLLECTION", "indexes": [ { "field": "entityType", "order": "ASCENDING" }, { "field": "action", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "notifications", "queryScope": "COLLECTION", "indexes": [ { "field": "uid", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "notifications", "queryScope": "COLLECTION", "indexes": [ { "field": "uid", "order": "ASCENDING" }, { "field": "isRead", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "support_requests", "queryScope": "COLLECTION", "indexes": [ { "field": "uid", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "support_requests", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "wholesale_applications", "queryScope": "COLLECTION", "indexes": [ { "field": "status", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "wholesale_applications", "queryScope": "COLLECTION", "indexes": [ { "field": "uid", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "indexes": [ { "field": "role", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "indexes": [ { "field": "wholesaleStatus", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "indexes": [ { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "coupons", "queryScope": "COLLECTION", "indexes": [ { "field": "isActive", "order": "ASCENDING" }, { "field": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "customer_price_overrides", "queryScope": "COLLECTION", "indexes": [ { "field": "uid", "order": "ASCENDING" }, { "field": "productId", "order": "ASCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}

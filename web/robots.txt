@@ -1,0 +1,39 @@
+# OM Events And Decorators — wholesale and party supplies.
+#
+# Generated content: the canonical source is lib/app/seo/route_meta.dart (the indexing decision
+# per route) rendered by OmSeoDocuments.robotsTxt(). Edit that table, then regenerate this file —
+# a Disallow list that disagrees with a <meta name="robots" content="noindex"> tag is what makes a
+# removal request take weeks instead of hours.
+#
+# DEPLOY: replace every {{SITE_ORIGIN}} with your https origin (no trailing slash), then UNcomment
+# the Sitemap line below. Example:
+#   sed -i "s|{{SITE_ORIGIN}}|https://omeventsdecor.com|g" build/web/robots.txt build/web/sitemap.xml
+User-agent: *
+
+# Private or transactional surfaces. Never indexable, never a crawl-budget spend.
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /order-success
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /account
+Disallow: /account/
+Disallow: /review
+Disallow: /wholesale/bulk-order
+Disallow: /wholesale/quotation
+Disallow: /not-found
+Disallow: /unavailable
+
+# Search results are a filtered duplicate of the catalogue: crawlable links, indexable page is not.
+Disallow: /search
+
+# Parameterised catalogue variants are crawl traps. Canonical pages stay open.
+Disallow: /*?add=
+Disallow: /*?remove=
+Disallow: /*?sort=price
+
+# Sitemap: {{SITE_ORIGIN}}/sitemap.xml

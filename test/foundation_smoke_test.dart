@@ -1,6 +1,5 @@
 // Foundation tests: the invariants the five feature agents build on. If one of these breaks,
 // every screen that depends on routing, guards or the unconfigured-app state is suspect.
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/services/app_bootstrap.dart';
@@ -35,18 +34,18 @@ void main() {
 
   group('route guards', () {
     test('an anonymous visitor is sent to login with the page they wanted', () {
-      final redirect = AuthGuard().redirect('/cart');
+      final redirect = AuthGuard().redirect(OmRoutes.cart);
       expect(redirect?.name, contains(OmRoutes.login));
-      expect(Uri.parse(redirect!.name!).queryParameters[OmRouteArgs.returnUrl], '/cart');
+      expect(Uri.parse(redirect!.name!).queryParameters[OmRouteArgs.returnUrl], OmRoutes.cart);
     });
 
     test('a signed-in customer reaches their own account page', () {
-      signIn(const UserProfile(uid: 'u1', role: UserRole.customer));
+      signIn(const UserProfile(uid: 'u1'));
       expect(AuthGuard().redirect(OmRoutes.accountOrders), isNull);
     });
 
     test('a signed-in customer cannot open the admin panel', () {
-      signIn(const UserProfile(uid: 'u1', role: UserRole.customer));
+      signIn(const UserProfile(uid: 'u1'));
       expect(AdminGuard().redirect(OmRoutes.admin)?.name, OmRoutes.notFound);
     });
 
@@ -74,22 +73,18 @@ void main() {
     });
 
     test('wholesale tools stay locked until an admin approves the application', () {
-      signIn(const UserProfile(uid: 'u5', role: UserRole.customer));
+      signIn(const UserProfile(uid: 'u5'));
       expect(
         WholesaleGuard().redirect(OmRoutes.wholesaleBulkOrder)?.name,
         OmRoutes.wholesaleApply,
       );
 
-      signIn(const UserProfile(
-        uid: 'u5',
-        role: UserRole.customer,
-        wholesaleStatus: WholesaleStatus.approved,
-      ));
+      signIn(const UserProfile(uid: 'u5', wholesaleStatus: WholesaleStatus.approved));
       expect(WholesaleGuard().redirect(OmRoutes.wholesaleBulkOrder), isNull);
     });
 
     test('a signed-in user is bounced out of the login screen', () {
-      signIn(const UserProfile(uid: 'u6', role: UserRole.customer));
+      signIn(const UserProfile(uid: 'u6'));
       expect(SignedOutOnlyGuard().redirect(OmRoutes.login)?.name, OmRoutes.account);
     });
 
@@ -101,9 +96,9 @@ void main() {
 
   group('unconfigured build', () {
     testWidgets('shows what is missing instead of a sample catalogue', (tester) async {
-      await tester.pumpWidget(OmEventsApp(
-        report: const BootstrapReport(firebaseReady: false, supabaseReady: false),
-      ));
+      await tester.pumpWidget(
+        const OmEventsApp(report: BootstrapReport(firebaseReady: false, supabaseReady: false)),
+      );
 
       expect(find.text('Backend not configured'), findsOneWidget);
       expect(find.textContaining('FIREBASE_API_KEY'), findsOneWidget);
@@ -111,13 +106,15 @@ void main() {
     });
 
     testWidgets('refuses to start when a privileged key reached the bundle', (tester) async {
-      await tester.pumpWidget(OmEventsApp(
-        report: const BootstrapReport(
-          firebaseReady: false,
-          supabaseReady: false,
-          failure: 'SUPABASE_SERVICE_ROLE_KEY must not be compiled into the client',
+      await tester.pumpWidget(
+        const OmEventsApp(
+          report: BootstrapReport(
+            firebaseReady: false,
+            supabaseReady: false,
+            failure: 'SUPABASE_SERVICE_ROLE_KEY must not be compiled into the client',
+          ),
         ),
-      ));
+      );
 
       expect(find.textContaining('SUPABASE_SERVICE_ROLE_KEY'), findsWidgets);
     });

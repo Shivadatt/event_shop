@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Firebase Storage is NOT the media home for this store: catalogue images live in Supabase Storage
+// (Agent 4) and Firestore only holds media_objects references (URL + alt), never bytes or base64.
+// These rules therefore deny all client writes by default. The only public access is read of an
+// explicit `public/` prefix (e.g. a favicon) if the operator chooses to use Firebase Storage at
+// all; uploads require a privileged custom claim set by the Admin SDK, and are expected to stay off.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.role in ['staff', 'admin', 'owner']
+        && request.auth.token.isBlocked != true;
+    }
+
+    // Public read only under an opt-in `public/` folder; nothing is enumerable.
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Anything else: staff-only read, and no client writes ever. Uploads (if used at all) go
+    // through a privileged flow; a browser must not be able to plant arbitrary bytes.
+    match /{allPaths=**} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+  }
+}

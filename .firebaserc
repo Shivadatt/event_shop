@@ -1,0 +1,6 @@
+{
+  "//": "Templated placeholder, not a real project. During setup run: firebase projects:add <PROJECT_ID> && firebase use <PROJECT_ID>, which rewrites this file with your actual project id. Never hand-edit a project id into source control.",
+  "projects": {
+    "default": "REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID"
+  }
+}

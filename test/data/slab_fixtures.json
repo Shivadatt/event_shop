@@ -1,0 +1,129 @@
+{
+  "note": "Single source of truth for pricing parity. test/backend_pricing_parity_test.dart runs the Dart PricingEngine over these cases; functions/scripts/check_pricing_fixtures.js runs functions/lib/pricing.js over the identical cases. A change here must keep BOTH green. Money is integer paise; slab price applies to EVERY unit in the band.",
+  "headline": {
+    "product": "Latex Balloon Pack",
+    "retailPricePaise": 11000,
+    "slabs": [
+      { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 },
+      { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 },
+      { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 }
+    ],
+    "brief": "The brief's four figures: 1->11000, 10->100000, 20->200000, 21->199500."
+  },
+  "priceCases": [
+    {
+      "id": "headline_1",
+      "description": "1 pack pays retail; slab price equals retail in the first band so no savings.",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 1,
+      "expected": { "unitPricePaise": 11000, "lineTotalPaise": 11000, "savedPaise": 0 }
+    },
+    {
+      "id": "headline_9_upper_bound",
+      "description": "9 is the top of the first band, still retail.",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 9,
+      "expected": { "unitPricePaise": 11000, "lineTotalPaise": 99000, "savedPaise": 0 }
+    },
+    {
+      "id": "headline_10_lower_bound",
+      "description": "10 crosses into band two for EVERY unit: 10 x 10000 = 100000, saving 10000.",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 10,
+      "expected": { "unitPricePaise": 10000, "lineTotalPaise": 100000, "savedPaise": 10000 }
+    },
+    {
+      "id": "headline_20_upper_bound",
+      "description": "20 is the top of the middle band.",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 20,
+      "expected": { "unitPricePaise": 10000, "lineTotalPaise": 200000, "savedPaise": 20000 }
+    },
+    {
+      "id": "headline_21_open_ended",
+      "description": "21 drops to the open-ended slab: 21 x 9500 = 199500 (the brief's example).",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 21,
+      "expected": { "unitPricePaise": 9500, "lineTotalPaise": 199500, "savedPaise": 31500 }
+    },
+    {
+      "id": "headline_500_far_open_ended",
+      "description": "Open-ended band has no ceiling; 500 units all take 9500.",
+      "product": { "name": "Latex Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ] },
+      "qty": 500,
+      "expected": { "unitPricePaise": 9500, "lineTotalPaise": 4750000, "savedPaise": 750000 }
+    },
+    {
+      "id": "below_first_band_49",
+      "description": "Quantity below the only band pays retail, not the discounted band price.",
+      "product": { "name": "Only bulk discounted", "retailPricePaise": 50000, "slabs": [ { "minQty": 50, "maxQty": null, "unitPricePaise": 40000 } ] },
+      "qty": 49,
+      "expected": { "unitPricePaise": 50000, "lineTotalPaise": 2450000, "savedPaise": 0 }
+    },
+    {
+      "id": "below_first_band_50",
+      "description": "Exactly at the first band the discount engages for every unit.",
+      "product": { "name": "Only bulk discounted", "retailPricePaise": 50000, "slabs": [ { "minQty": 50, "maxQty": null, "unitPricePaise": 40000 } ] },
+      "qty": 50,
+      "expected": { "unitPricePaise": 40000, "lineTotalPaise": 2000000, "savedPaise": 500000 }
+    },
+    {
+      "id": "variant_slabs_win",
+      "description": "Variant has its own retail + slabs; those override the product's empty grid. base = variant retail 12000.",
+      "product": { "name": "Table Cloth", "retailPricePaise": 11000, "slabs": [] },
+      "variant": { "retailPricePaise": 12000, "slabs": [ { "minQty": 1, "maxQty": 4, "unitPricePaise": 12000 }, { "minQty": 5, "maxQty": null, "unitPricePaise": 10000 } ] },
+      "qty": 5,
+      "expected": { "unitPricePaise": 10000, "lineTotalPaise": 50000, "savedPaise": 10000 }
+    },
+    {
+      "id": "customer_override",
+      "description": "A negotiated contract price beats public slabs and applies unit-for-unit; reference base stays the shelf price.",
+      "product": { "name": "Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 10, "maxQty": null, "unitPricePaise": 9000 } ] },
+      "qty": 3,
+      "customerOverrideUnitPricePaise": 9000,
+      "expected": { "unitPricePaise": 9000, "lineTotalPaise": 27000, "savedPaise": 6000 }
+    },
+    {
+      "id": "live_sale_no_dates",
+      "description": "An active date-less sale lowers the base to 10000; the slab then discounts from that base.",
+      "product": { "name": "Balloon Pack", "retailPricePaise": 11000, "salePricePaise": 10000, "slabs": [ { "minQty": 1, "maxQty": null, "unitPricePaise": 9000 } ] },
+      "qty": 2,
+      "expected": { "unitPricePaise": 9000, "lineTotalPaise": 18000, "savedPaise": 2000 }
+    },
+    {
+      "id": "no_slabs_flat_retail",
+      "description": "No slabs means flat retail for any quantity.",
+      "product": { "name": "Plain Ribbon", "retailPricePaise": 11000, "slabs": [] },
+      "qty": 4,
+      "expected": { "unitPricePaise": 11000, "lineTotalPaise": 44000, "savedPaise": 0 }
+    },
+    {
+      "id": "zero_quantity",
+      "description": "qty <= 0 prices nothing rather than matching a band.",
+      "product": { "name": "Balloon Pack", "retailPricePaise": 11000, "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 } ] },
+      "qty": 0,
+      "expected": { "unitPricePaise": 0, "lineTotalPaise": 0, "savedPaise": 0 }
+    },
+    {
+      "id": "ambiguous_grid_throws",
+      "description": "Two overlapping bands both claim qty 7; the engine refuses rather than guessing.",
+      "product": { "name": "Broken grid", "retailPricePaise": 10000, "slabs": [ { "minQty": 1, "maxQty": 10, "unitPricePaise": 10000 }, { "minQty": 5, "maxQty": 20, "unitPricePaise": 9000 } ] },
+      "qty": 7,
+      "expectThrow": true
+    }
+  ],
+  "gridCases": [
+    { "id": "grid_contiguous_ok", "description": "Clean contiguous grid passes.", "slabs": [ { "minQty": 1, "maxQty": 9, "unitPricePaise": 11000 }, { "minQty": 10, "maxQty": 20, "unitPricePaise": 10000 }, { "minQty": 21, "maxQty": null, "unitPricePaise": 9500 } ], "expectThrow": false },
+    { "id": "grid_overlap_at_boundary", "description": "min equal to the previous ceiling overlaps at qty 10.", "slabs": [ { "minQty": 1, "maxQty": 10, "unitPricePaise": 10000 }, { "minQty": 10, "maxQty": null, "unitPricePaise": 9000 } ], "expectThrow": true },
+    { "id": "grid_inverted_range", "description": "max below min is impossible.", "slabs": [ { "minQty": 20, "maxQty": 10, "unitPricePaise": 9000 } ], "expectThrow": true },
+    { "id": "grid_open_ended_middle", "description": "Only the last band may be open-ended.", "slabs": [ { "minQty": 1, "maxQty": null, "unitPricePaise": 10000 }, { "minQty": 10, "maxQty": null, "unitPricePaise": 9000 } ], "expectThrow": true },
+    { "id": "grid_zero_min", "description": "minQty must be at least 1.", "slabs": [ { "minQty": 0, "maxQty": 9, "unitPricePaise": 10000 } ], "expectThrow": true },
+    { "id": "grid_zero_price", "description": "Slab price must be above zero.", "slabs": [ { "minQty": 1, "maxQty": null, "unitPricePaise": 0 } ], "expectThrow": true },
+    { "id": "grid_single_open_ended_ok", "description": "A single open-ended band is valid.", "slabs": [ { "minQty": 10, "maxQty": null, "unitPricePaise": 9000 } ], "expectThrow": false }
+  ],
+  "taxCases": [
+    { "id": "tax_exclusive_18pct", "description": "18% GST as basis points on the discounted subtotal.", "lineTotalPaise": 20000, "qty": 2, "couponDiscountPaise": 0, "shippingPaise": 0, "taxRateBps": 1800, "taxInclusive": false, "expected": { "subtotalPaise": 20000, "couponDiscountPaise": 0, "taxPaise": 3600, "grandTotalPaise": 23600, "payableRoundedPaise": 23600 } },
+    { "id": "tax_inclusive", "description": "Tax-inclusive display adds no tax on top.", "lineTotalPaise": 20000, "qty": 2, "couponDiscountPaise": 0, "shippingPaise": 0, "taxRateBps": 1800, "taxInclusive": true, "expected": { "subtotalPaise": 20000, "couponDiscountPaise": 0, "taxPaise": 0, "grandTotalPaise": 20000, "payableRoundedPaise": 20000 } },
+    { "id": "tax_after_coupon_and_shipping", "description": "Coupon reduces the taxable base; shipping is added after tax; payable rounds UP to whole rupees. taxable = 199500-5000 = 194500 -> tax round(194500*1800/10000)=35010; grandTotal = 199500-5000+12345+35010 = 241855; payable = floor((241855+99)/100)*100 = 241900.", "lineTotalPaise": 199500, "qty": 21, "couponDiscountPaise": 5000, "shippingPaise": 12345, "taxRateBps": 1800, "taxInclusive": false, "expected": { "subtotalPaise": 199500, "couponDiscountPaise": 5000, "taxPaise": 35010, "grandTotalPaise": 241855, "payableRoundedPaise": 241900 } }
+  ]
+}

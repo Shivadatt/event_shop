@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Seed sitemap for OM Events And Decorators.
+
+  This file is a template, not the live sitemap: replace every {{SITE_ORIGIN}} with the store's
+  https origin before submitting it to Search Console, then append the catalogue URLs. The live set
+  is generated from the route table plus the product/category collections by
+  OmSeoDocuments.sitemapXml(urls: ...), which refuses to emit anything while the origin token is
+  still present — a submitted placeholder URL is a permanent crawl error.
+
+    sed -i "s|{{SITE_ORIGIN}}|https://omeventsdecor.com|g" build/web/sitemap.xml
+
+  Rules the generator enforces: only routes whose OmRouteMeta entry is indexable appear; no
+  /admin, /cart, /checkout, /account, /search or /order-success URLs; `<lastmod>` is UTC ISO-8601.
+  Product pages change price and stock daily, so they are `daily` / priority 0.8; the shelves are
+  `weekly` / 0.7; static trust pages are `monthly` / 0.4.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{SITE_ORIGIN}}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/faq</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/wholesale/apply</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/policy/refund</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/policy/shipping</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/policy/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/policy/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>{{SITE_ORIGIN}}/policy/cancellation</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <!--
+    One <url> block per live product and category, appended by the generator:
+
+    <url>
+      <loc>{{SITE_ORIGIN}}/category/balloons</loc>
+      <lastmod>2026-01-01T00:00:00Z</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>{{SITE_ORIGIN}}/product/latex-balloon-pack</loc>
+      <lastmod>2026-01-01T00:00:00Z</lastmod>
+      <changefreq>daily</changefreq>
+      <priority>0.8</priority>
+    </url>
+  -->
+</urlset>

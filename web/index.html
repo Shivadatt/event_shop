@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en-IN">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,21 +18,205 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!--
+    ─────────────────────────────────────────────────────────────────────────────
+    DEPLOY SUBSTITUTION (required once, before going live)
+    Replace every {{SITE_ORIGIN}} below with the store's own https origin, no
+    trailing slash, e.g. https://omeventsdecor.com — by either:
+
+      1. sed at build/deploy time (works on any static host):
+         find build/web -maxdepth 1 -name '*.html' -o -name 'robots.txt' -o -name 'sitemap.xml' \
+           | xargs sed -i "s|{{SITE_ORIGIN}}|https://omeventsdecor.com|g"
+      2. or hosting-template variables (Firebase Hosting `hosting.json` rewrites,
+         Netlify/Vercel env interpolation) if your host supports them.
+
+    Nothing here is a real project id, key or analytics id: an unfilled token is
+    visibly wrong at a glance, which is the point. `test/security_hygiene_test.dart`
+    fails the build if a token is left in a *shipped* file and
+    `test/seo/om_seo_test.dart` fails if a fabricated-looking origin is hardcoded.
+    Canonical URLs are NOT declared statically: the Flutter app writes the canonical
+    for the route it actually rendered (OmRouteMeta + OmSeo.absoluteUrl), because a
+    single-page shell cannot know which product page the visitor landed on.
+    ─────────────────────────────────────────────────────────────────────────────
+  -->
+
+  <title>OM Events And Decorators — Wholesale &amp; Party Supplies</title>
+  <meta name="description"
+        content="Wholesale party supplies, balloons, decor and event materials for traders and planners. Quantity pricing applies automatically at checkout.">
+  <meta name="robots" content="index, follow">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0B0B0C">
+
+  <!-- Open Graph / Twitter: filled by the app per route at runtime; these are the shell values. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OM Events And Decorators">
+  <meta property="og:title" content="OM Events And Decorators — Wholesale &amp; Party Supplies">
+  <meta property="og:description"
+        content="Wholesale party supplies, balloons, decor and event materials. Quantity pricing applies automatically.">
+  <meta property="og:url" content="{{SITE_ORIGIN}}/">
+  <meta property="og:image" content="{{SITE_ORIGIN}}/icons/Icon-512.png">
+  <meta property="og:image:alt" content="OM Events And Decorators — wholesale and party supplies">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OM Events And Decorators — Wholesale &amp; Party Supplies">
+  <meta name="twitter:description"
+        content="Wholesale party supplies, balloons, decor and event materials. Quantity pricing applies automatically.">
+  <meta name="twitter:image" content="{{SITE_ORIGIN}}/icons/Icon-512.png">
+  <!-- Filled only if the shop has a handle: <meta name="twitter:site" content="@yourhandle"> -->
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="om_events">
+  <meta name="apple-mobile-web-app-title" content="OM Events">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" sizes="any" href="favicon.png">
 
-  <title>om_events</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Entity data a crawler reads before any JavaScript runs. The Flutter app emits the same two
+    blocks again from OmJsonLd.bootstrapBlocks() once store_settings loads; `@id` collision is
+    intentional and harmless (identical ids merge). Replace {{SITE_ORIGIN}} at deploy time.
+  -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "{{SITE_ORIGIN}}/#organization",
+    "name": "OM Events And Decorators",
+    "slogan": "Wholesale & Party Supplies",
+    "url": "{{SITE_ORIGIN}}/",
+    "logo": "{{SITE_ORIGIN}}/icons/Icon-512.png"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "{{SITE_ORIGIN}}/#website",
+    "name": "OM Events And Decorators",
+    "url": "{{SITE_ORIGIN}}/",
+    "inLanguage": "en-IN"
+  }
+  </script>
+
+  <style>
+    /* Brand-first paint. These literals mirror OmColors in lib/app/theme/om_tokens.dart and are
+       the only place outside the Dart theme where the palette is repeated, because this CSS must
+       render before a single line of Dart runs. */
+    :root {
+      --om-black: #0B0B0C;
+      --om-surface: #141416;
+      --om-gold: #C9A227;
+      --om-gold-bright: #E5C158;
+      --om-gold-soft: #F2E2B0;
+      --om-cream: #FBF8F1;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: var(--om-black);
+    }
+    #om-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background:
+        radial-gradient(circle at 50% 22%, #23232A 0%, var(--om-black) 62%),
+        var(--om-black);
+      color: var(--om-cream);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      transition: opacity 260ms ease-out;
+    }
+    #om-loading[data-hide="1"] { opacity: 0; pointer-events: none; }
+    .om-mark {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      letter-spacing: 0.42em;
+      text-indent: 0.42em;
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--om-gold-bright);
+    }
+    .om-rule {
+      width: 72px;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--om-gold), var(--om-gold-bright));
+    }
+    .om-sub {
+      font-size: 12px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--om-gold-soft);
+      opacity: 0.82;
+    }
+    .om-bar {
+      width: 168px;
+      height: 2px;
+      overflow: hidden;
+      background: rgba(242, 226, 176, 0.18);
+      border-radius: 999px;
+    }
+    .om-bar i {
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: var(--om-gold);
+      animation: om-sweep 1.25s ease-in-out infinite;
+    }
+    @keyframes om-sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(260%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .om-bar i { animation: none; width: 100%; }
+      #om-loading { transition: none; }
+    }
+    /* Keeps the store readable with JavaScript disabled, instead of an empty black page. */
+    #om-noscript {
+      position: fixed;
+      inset: auto 0 0 0;
+      padding: 16px;
+      background: var(--om-surface);
+      color: var(--om-cream);
+      font-size: 14px;
+      text-align: center;
+      border-top: 1px solid rgba(201, 162, 39, 0.4);
+    }
+  </style>
 </head>
 <body>
+  <div id="om-loading" role="status" aria-live="polite">
+    <div class="om-mark" aria-hidden="true">OM</div>
+    <div class="om-rule" aria-hidden="true"></div>
+    <div class="om-sub">Wholesale &amp; Party Supplies</div>
+    <div class="om-bar" aria-hidden="true"><i></i></div>
+    <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">
+      Loading OM Events And Decorators
+    </span>
+  </div>
+
+  <noscript>
+    <div id="om-noscript">
+      OM Events And Decorators — wholesale balloons, decor and party supplies. This store needs
+      JavaScript for catalogue and checkout. Call or WhatsApp the shop counter to order:
+      see the phone number on our Google Business listing.
+    </div>
+  </noscript>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -42,5 +226,35 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+
+  <script>
+    // Hides the branded loading frame once the engine has painted. Three independent signals,
+    // because the overlay must never be the reason a customer cannot see the store:
+    //   1. `flutter-first-frame` — the engine's own event;
+    //   2. a MutationObserver on the <flutter-view> Flutter mounts into;
+    //   3. a 20s deadline, after which the frame leaves regardless.
+    (function () {
+      var frame = document.getElementById('om-loading');
+      if (!frame) return;
+      var hidden = false;
+      function hide() {
+        if (hidden) return;
+        hidden = true;
+        frame.setAttribute('data-hide', '1');
+        setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 400);
+      }
+      document.addEventListener('flutter-first-frame', hide);
+      if (window.MutationObserver) {
+        var observer = new MutationObserver(function () {
+          if (document.querySelector('flutter-view') || document.querySelector('canvas')) {
+            observer.disconnect();
+            setTimeout(hide, 120);
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+      setTimeout(hide, 20000);
+    })();
+  </script>
 </body>
 </html>

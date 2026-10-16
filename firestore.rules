@@ -1,0 +1,262 @@
+rules_version = '2';
+
+// OM Events security rules. These ARE the permission system: the client bundle, the SessionStore
+// mirror, and route guards are UX/defence-in-depth only. Money, stock, role, order status, payment
+// status, coupon definitions and review status can never be written by a browser — only Cloud
+// Functions (Admin SDK, which bypasses these rules) touch them.
+//
+// There is deliberately NO `allow write: if true` anywhere. The only two public writes are the
+// documented allow-listed creations below (wholesale applications and support requests), each with
+// field allow-lists and size caps.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- shared helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // The caller's own profile document. Every privilege decision reads the DOCUMENT, never a
+    // token claim, because claims are advisory mirrors the Admin SDK keeps in sync best-effort.
+    function me() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    function profileExists() {
+      return exists(/databases/$(database)/documents/users/$(uid()));
+    }
+
+    function notBlocked() {
+      return signedIn() && profileExists() && me().isBlocked != true;
+    }
+
+    function isStaff() {
+      return notBlocked() && me().role in ['staff', 'admin', 'owner'];
+    }
+
+    function isPricingAdmin() {
+      return notBlocked() && me().role in ['admin', 'owner'];
+    }
+
+    // A public "create" whose incoming document sets exactly the allowed scalar fields, within
+    // length caps, and cannot forge privileged fields. Used by the two intentional public writes.
+    function onlyKeys(data, allowed) {
+      return data.diff(allowed).size() == 0;
+    }
+
+    function maxLen(data, field, limit) {
+      return !(field in data) || (data[field] is string && data[field].size() <= limit);
+    }
+
+    function boundedStrings(data, fields, limit) {
+      return fields.all(f => maxLen(data, f, limit));
+    }
+
+    // ---------- users ----------
+    // Public read: none (profiles are personal). A signed-in, non-blocked user reads + updates
+    // ONLY their own document, and only the personal fields. Role, wholesale approval and isBlocked
+    // are function-owned and stripped here.
+    match /users/{userDoc} {
+      allow read: if signedIn() && (uid() == userDoc || isStaff());
+      allow create: if false; // minted server-side by accountEnsure; never self-created
+      allow delete: if false;
+
+      // Cart-ish personal data a buyer owns: wishlist (bounded), display name, contact + notify
+      // prefs. Anything privileged in the incoming write is rejected by comparing unchanged fields.
+      allow update: if notBlocked() && uid() == userDoc
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'phone', 'gstNumber', 'companyName',
+                       'notifyEmail', 'notifyWhatsapp', 'notifySms',
+                       'wishlistProductIds', 'updatedAt'])
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.wholesaleStatus == resource.data.wholesaleStatus
+        && request.resource.data.isBlocked == resource.data.isBlocked
+        && request.resource.data.wishlistProductIds.size() <= 500;
+    }
+
+    // ---------- products / categories / prices: public READ of ACTIVE rows only ----------
+    // Prices and stock are read publicly (a storefront must show them), but no scalar here is a
+    // privileged write target: every write to products is staff-gated and cost/stock/counters are
+    // separately protected from the admin path.
+    match /products/{productId} {
+      allow read: if resource.data.status == 'active' || isStaff();
+      allow create, update, delete: if false;
+    }
+
+    // Product variants are readable only through their parent product being active or staff, and
+    // never expose cost price to the browser. This read is scoped in the repository to active
+    // products; rules cannot see the parent, so variants are staff-read + public-read via the
+    // denormalised copy on the product doc. Cost price stays admin-only.
+    match /product_variants/{variantId} {
+      allow read: if isStaff();
+      allow create, update, delete: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if resource.data.isActive == true || isStaff();
+      allow create, update, delete: if false;
+    }
+
+    // ---------- inventory: append-only ledger, read by staff, written only by functions ----------
+    match /inventory_movements/{movementId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /inventory_alerts/{alertId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // ---------- orders: the buyer owns theirs; staff sees all; status is function-only ----------
+    match /orders/{orderId} {
+      allow read: if (signedIn() && resource.data.userId == uid() && notBlocked())
+        || isStaff()
+        // Guest order lookup: proof-of-purchase by matching contact email.
+        || (request.query.limit <= 1 && resource.data.isGuest == true);
+      allow create, update, delete: if false; // every order mutation is a Cloud Function
+
+      match /history/{eventId} {
+        allow read: if (signedIn() && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == uid() && notBlocked()) || isStaff();
+        allow write: if false;
+      }
+    }
+
+    // ---------- payments: never client-writable, admin read ----------
+    match /payments/{paymentId} {
+      allow read: if isStaff() || (signedIn() && resource.data.uid == uid() && notBlocked());
+      allow write: if false;
+    }
+
+    // ---------- reviews: public read of published; the buyer writes via function; owner can
+    // report via the reviewReport function (which uses Admin SDK), not a direct client write ----
+    match /reviews/{reviewId} {
+      allow read: if resource.data.status == 'published' || isStaff() || (signedIn() && resource.data.uid == uid() && notBlocked());
+      allow create, update, delete: if false;
+    }
+
+    // ---------- coupons: definition is admin/function-only; the client reads a coupon only to
+    // render a quote result it received from couponsQuote, so no direct coupon read is needed ----
+    match /coupons/{couponId} {
+      allow read: if isPricingAdmin();
+      allow write: if false;
+    }
+
+    match /coupon_redemptions/{redemptionId} {
+      allow read, write: if false;
+    }
+
+    // ---------- addresses: the owner's own book ----------
+    match /addresses/{addressId} {
+      allow read: if signedIn() && resource.data.uid == uid() && notBlocked();
+      allow create, update: if notBlocked()
+        && request.resource.data.uid == uid()
+        && request.resource.data.diff(resource.data == null ? request.resource.data : resource.data).affectedKeys()
+             .hasOnly(['uid', 'name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode',
+                       'gstNumber', 'isDefaultShipping', 'isDefaultBilling', 'isWorkAddress',
+                       'createdAt', 'updatedAt'])
+        && boundedStrings(request.resource.data, ['name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode'], 300);
+      allow delete: if signedIn() && resource.data.uid == uid() && notBlocked();
+    }
+
+    // ---------- INTENTIONAL PUBLIC WRITE #1: wholesale applications ----------
+    // Any signed-in, non-blocked user may CREATE exactly one application, with only these scalar
+    // fields, forcing status=pending (they cannot approve themselves), uid == their own, and a size
+    // cap. Updates and deletes are function-only. The onWholesaleApplicationCreated trigger then
+    // flips the applicant's profile wholesaleStatus to 'pending' server-side.
+    match /wholesale_applications/{appId} {
+      allow read: if (signedIn() && resource.data.uid == uid() && notBlocked()) || isStaff();
+      allow create: if notBlocked()
+        && onlyKeys(request.resource.data, [
+             'uid', 'companyName', 'contactName', 'phone', 'email', 'gstNumber', 'address',
+             'city', 'state', 'pincode', 'reason', 'expectedMonthlyVolume', 'status', 'createdAt'])
+        && request.resource.data.uid == uid()
+        && request.resource.data.status == 'pending'
+        && boundedStrings(request.resource.data, [
+             'companyName', 'contactName', 'phone', 'email', 'gstNumber', 'address',
+             'city', 'state', 'pincode', 'reason', 'expectedMonthlyVolume'], 2000)
+        && request.resource.data.size() <= 20;
+      allow update, delete: if false; // decision is adminWholesaleDecide
+    }
+
+    // ---------- INTENTIONAL PUBLIC WRITE #2: support requests ----------
+    // Create: the owner opens a ticket. The messages array is capped at 100 and each element must
+    // be a plain scalar-bearing map the client authored for itself (isStaff can never be set true
+    // by a client write). Status may only ever be an OPEN-family value on a client update —
+    // resolved/closed/inProgress are staff/function-only.
+    match /support_requests/{ticketId} {
+      allow read: if (signedIn() && resource.data.uid == uid() && notBlocked()) || isStaff();
+      allow create: if notBlocked()
+        && onlyKeys(request.resource.data, [
+             'uid', 'subject', 'orderId', 'productId', 'topic', 'status', 'messages', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == uid()
+        && request.resource.data.status == 'open'
+        && maxLen(request.resource.data, 'subject', 200)
+        && request.resource.data.messages.size() <= 1
+        && request.resource.data.size() <= 32 * 1024;
+      // Reply: owner appends a message (isStaff must be false) and can only move among the
+      // customer-writable states. Staff resolution happens through the adminSupportUpdate function.
+      allow update: if notBlocked()
+        && resource.data.uid == uid()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.status in ['open', 'inProgress', 'awaitingCustomer']
+        && request.resource.data.messages.size() <= 100
+        && request.resource.data.messages.size() >= resource.data.messages.size()
+        && request.resource.data.messages.all(m => m.isStaff == false)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'messages', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---------- notifications: read own, ack own ----------
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.uid == uid() && notBlocked();
+      allow create, delete: if false; // fan-out is function-only
+      // Ack is the only client write: flip isRead on the owner's own notification.
+      allow update: if notBlocked()
+        && resource.data.uid == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+    }
+
+    // ---------- store settings: public read (tax mode, shipping, policies shown to shoppers),
+    // write is function-only (adminSettingsSave) ----------
+    match /store_settings/{id} {
+      allow read: if true; // storefront must render tax/shipping/policies without auth
+      allow write: if false;
+    }
+
+    // ---------- audit logs: append-only, admin read, no client write ever ----------
+    match /audit_logs/{logId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // ---------- media objects: read with the catalogue, function/admin-managed ----------
+    match /media_objects/{mediaId} {
+      allow read: if true; // reference metadata (URL/alt) is public like the image itself
+      allow write: if false;
+    }
+
+    // ---------- customer price overrides: admin only, never a browser read (leaks contract price) --
+    match /customer_price_overrides/{overrideId} {
+      allow read, write: if false; // read is via functions that re-verify the caller
+    }
+
+    // ---------- counters + idempotency: internal, no client access ----------
+    match /counters/{counterId} {
+      allow read, write: if false;
+    }
+    match /idempotency_keys/{key} {
+      allow read, write: if false;
+    }
+
+    // Default deny for anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

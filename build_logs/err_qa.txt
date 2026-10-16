@@ -1,0 +1,42 @@
+test/responsive/om_responsive_test.dart:24:41 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:25:30 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:26:24 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:29:41 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:30:30 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:33:42 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:34:30 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:37:43 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:38:30 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:41:67 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:43:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:48:27 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:66:72 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:67:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:68:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:69:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:70:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:71:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:72:28 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:75:51 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:78:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:110:60 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:112:39 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:123:9 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:125:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:136:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:150:9 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:157:20 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:161:20 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:169:9 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:172:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:179:24 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:182:68 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:184:9 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:198:73 | argument_type_not_assignable | The argument type 'Future<Null> Function(dynamic)' can't be assigned to the parameter type 'dynamic Function()'. 
+test/responsive/om_responsive_test.dart:200:11 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/responsive/om_responsive_test.dart:214:26 | argument_type_not_assignable | The argument type 'dynamic' can't be assigned to the parameter type 'WidgetTester'. 
+test/seo/route_meta_test.dart:185:77 | missing_identifier | Expected an identifier
+test/support/om_fakes.dart:185:43 | undefined_method | The method 'intersection' isn't defined for the type 'List'. Try correcting the name to the name of an existing method, or defining a method named 'intersection'
+test/support/om_harness.dart:109:70 | undefined_class | Undefined class 'SemanticsProperties'. Try changing the name to the name of an existing class, or creating a class with the name 'SemanticsProperties'
+test/support/om_harness.dart:111:43 | undefined_method | The method 'getProperties' isn't defined for the type 'SemanticsNode'. Try correcting the name to the name of an existing method, or defining a method named 'getProperties'
+lib/app/seo/seo_documents.dart:30:28 | undefined_method | The method 'toIso8601' isn't defined for the type 'DateTime'

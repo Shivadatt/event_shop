@@ -1,0 +1,19 @@
+{
+  "name": "om-events-functions",
+  "description": "Trusted server side for OM Events wholesale store: pricing, orders, stock, moderation.",
+  "private": true,
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "check:pricing": "node scripts/check_pricing_fixtures.js",
+    "serve": "firebase emulators:start --only functions,firestore",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1",
+    "firebase-functions": "^6.1.1"
+  }
+}

@@ -1,0 +1,8 @@
+lib/app/core/services/media/signed_url_cache.dart:71:13 | const_with_non_const | The constructor being called isn't a const constructor. Try removing 'const' from the constructor invocation
+lib/app/core/widgets/media/om_media_item_tile.dart:192:15 | undefined_named_parameter | The named parameter 'isComplex' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'isComplex'
+lib/app/core/widgets/media/om_media_orphan_panel.dart:44:12 | return_of_invalid_type | A value of type 'MediaRepository?' can't be returned from the function '_control' because it has a return type of 'MediaOrphanControl?'
+lib/app/core/widgets/media/om_media_orphan_panel.dart:258:13 | missing_identifier | Expected an identifier
+lib/app/core/widgets/media/om_media_orphan_panel.dart:258:13 | expected_token | Expected to find ']'
+lib/data/repositories/supabase/supabase_media_repository.dart:464:33 | undefined_getter | The getter 'mediaIdFromPath' isn't defined for the type 'List<String>'. Try importing the library that defines 'mediaIdFromPath', correcting the name to the name of an existing getter, or defining a getter or field named 'mediaIdFromPath'
+lib/data/repositories/supabase/supabase_media_repository.dart:464:64 | return_of_invalid_type_from_closure | The returned type 'dynamic' isn't returnable from a 'bool' function, as required by the closure's context
+lib/data/repositories/supabase/supabase_media_repository.dart:466:27 | argument_type_not_assignable | The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<String>'. 
