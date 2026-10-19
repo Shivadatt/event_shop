@@ -38,9 +38,9 @@ final class AccountHomeView extends GetView<AccountHomeController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                OmText('Your session could not be read.', variant: OmTextVariant.h3),
+                const OmText('Your session could not be read.', variant: OmTextVariant.h3),
                 const SizedBox(height: OmSpacing.sm),
-                OmText(
+                const OmText(
                   'The sign-in state comes from the store’s auth service, so this page will not '
                   'guess it. Sign in again to continue.',
                   variant: OmTextVariant.muted,
@@ -98,7 +98,7 @@ final class AccountHomeView extends GetView<AccountHomeController> {
               ),
             ),
             const SizedBox(height: OmSpacing.lg),
-            OmSectionHeader(title: 'Where to next'),
+            const OmSectionHeader(title: 'Where to next'),
             const SizedBox(height: OmSpacing.sm),
             _QuickLinks(
               links: <(String, String, String)>[
@@ -150,7 +150,7 @@ final class AccountHomeView extends GetView<AccountHomeController> {
                   ? const OmBadge(label: 'Store staff', tone: OmTone.gold, dense: true)
                   : null,
             ),
-            OmText(
+            const OmText(
               'Your role is set by the store, never by this device. Staff accounts can open the '
               'admin panel from the header.',
               variant: OmTextVariant.caption,

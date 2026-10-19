@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:om_events/app/core/errors/failures.dart';
@@ -129,6 +128,11 @@ final class MediaUploadTask {
     this.entityKey,
     this.attachment,
     this.onProgress,
+    // `this._bytes` would silence prefer_initializing_formals, but it would also make the
+    // parameter nullable and let a caller build a task with nothing to upload. The slot has to be
+    // nullable and mutable because releaseBytes() drops the reference so a multi-megabyte buffer
+    // can be collected while the row stays on screen; the constructor keeps the non-null promise.
+    // ignore: prefer_initializing_formals
   }) : _bytes = bytes;
 
   final String id;

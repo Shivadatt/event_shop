@@ -1,15 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
-// ignore: depend_on_referenced_packages
 import 'package:url_launcher/url_launcher.dart';
 
 /// Every exit from the SPA (WhatsApp click-to-chat, Google Maps, payment gateways) goes through
-/// this one helper so no screen invents its own launch path and the un-declared dependency note
-/// lives in exactly one file.
-///
-/// NEEDS OWNER: `url_launcher` resolves transitively (via the supabase/app_links chain) but is
-/// not declared in `pubspec.yaml`; declare it to remove the ignore above.
+/// this one helper so no screen invents its own launch path.
 abstract final class OmExternalLink {
   /// Opens [url] in a new browser context. Falls back to copying it when the browser blocks the
   /// popup or the plugin is unavailable, and always tells the user which happened.
@@ -28,7 +23,7 @@ abstract final class OmExternalLink {
       'Link copied',
       'Your browser blocked the pop-up. The link (${label ?? uri.host}) was copied to the '
           'clipboard — paste it into a new tab.',
-      snackDuration: const Duration(seconds: 4),
+      duration: const Duration(seconds: 4),
     );
   }
 
@@ -41,6 +36,6 @@ abstract final class OmExternalLink {
 
   static Future<void> copy(String text, {String note = 'Copied to clipboard'}) async {
     await Clipboard.setData(ClipboardData(text: text));
-    Get.snackbar('Copied', note, snackDuration: const Duration(seconds: 2));
+    Get.snackbar('Copied', note, duration: const Duration(seconds: 2));
   }
 }

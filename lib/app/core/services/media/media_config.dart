@@ -63,7 +63,7 @@ abstract final class MediaConfig {
       throw MediaFailure(unavailableMessage(action));
 
   static String unavailableMessage(String? action) =>
-      'Cannot ${action ?? 'access media'} — ${statusMessage}';
+      'Cannot ${action ?? 'access media'} — $statusMessage';
 
   /// Whether this device may offer destructive media actions (delete/orphan purge).
   ///

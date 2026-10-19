@@ -50,7 +50,7 @@ void main() {
 
   test('slug generation is fast and allocation-stable over a batch of names', () {
     final names = <String>[
-      for (var i = 0; i < 5000; i++) 'Balloon Arch Kit #${i} — Chrome & Party ($i)',
+      for (var i = 0; i < 5000; i++) 'Balloon Arch Kit #$i — Chrome & Party ($i)',
     ];
     final sw = Stopwatch()..start();
     final slugs = names.map(OmSlug.from).toList();
@@ -82,10 +82,10 @@ void main() {
   });
 
   test('cacheKey is stable and collision-free across distinct queries', () {
-    const a = CatalogQuery(search: 'balloon', pageSize: 24);
-    const b = CatalogQuery(search: 'balloon', categoryId: 'c1', pageSize: 24);
+    const a = CatalogQuery(search: 'balloon');
+    const b = CatalogQuery(search: 'balloon', categoryId: 'c1');
     expect(a.cacheKey == b.cacheKey, isFalse);
-    expect(a.cacheKey, const CatalogQuery(search: 'balloon', pageSize: 24).cacheKey);
+    expect(a.cacheKey, const CatalogQuery(search: 'balloon').cacheKey);
   });
 
   test('filterCount counts independent filter dimensions', () {

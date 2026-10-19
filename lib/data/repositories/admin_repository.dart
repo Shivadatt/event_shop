@@ -1,4 +1,5 @@
 import 'package:om_events/data/models/audit_log.dart';
+import 'package:om_events/data/models/category.dart';
 import 'package:om_events/data/models/coupon.dart';
 import 'package:om_events/data/models/inventory.dart';
 import 'package:om_events/data/models/order.dart';
@@ -72,6 +73,8 @@ final class ReportRow {
     required this.revenuePaise,
     this.costPaise = 0,
     this.discountPaise = 0,
+    this.orderCount = 0,
+    this.refundedPaise = 0,
   });
 
   final String key;
@@ -80,6 +83,14 @@ final class ReportRow {
   final int revenuePaise;
   final int costPaise;
   final int discountPaise;
+
+  /// How many orders the aggregate covered. Kept separate from [units] because a row of 3 orders
+  /// and a row of 3 units are different claims, and the customer panel used to print one as the
+  /// other.
+  final int orderCount;
+
+  /// Sum of `totals.refundedPaise` — money actually returned, not an order count in disguise.
+  final int refundedPaise;
 
   /// Margin is only meaningful when a cost price was recorded; a zero-cost row is reported as
   /// unknown rather than as a 100% margin.
@@ -106,6 +117,13 @@ abstract interface class AdminRepository {
   Future<void> archiveProduct(String productId, {required bool archived});
 
   Future<Product> duplicateProduct(String productId);
+
+  /// Privileged category write. Routes through the `adminCategorySave` callable so the admin role
+  /// is re-verified server-side and an audit row is written; `productCount` stays trigger-owned.
+  Future<Category> saveCategory(Category category);
+
+  /// Refuses (throws [ConflictFailure]) when the category still has children or products attached.
+  Future<void> deleteCategory(String categoryId);
 
   Future<void> saveVariant(ProductVariant variant);
 
@@ -140,6 +158,8 @@ abstract interface class AdminRepository {
   Future<PagedResult<Order>> listOrders({
     OrderStatus? status,
     PaymentStatus? paymentStatus,
+    DeliveryMode? deliveryMode,
+    String? customerId,
     String? search,
     DateTime? from,
     DateTime? to,
@@ -210,6 +230,10 @@ abstract interface class AdminRepository {
 
   Future<void> deleteCustomerPrice(String overrideId);
 
+  /// Reads contract-price overrides through the `adminCustomerPriceList` callable — the collection
+  /// is `read: if false` in the rules, so a direct client query is impossible by design.
+  Future<List<CustomerPriceOverride>> listCustomerPrices({String? productId, String? uid});
+
   Future<List<Review>> moderationQueue({ReviewStatus status = ReviewStatus.pending});
 
   Future<void> decideReview({
@@ -231,6 +255,9 @@ abstract interface class AdminRepository {
   Future<PagedResult<AuditLog>> auditLogs({
     String? entityType,
     String? action,
+    String? actorUid,
+    DateTime? from,
+    DateTime? to,
     int pageSize = 50,
     String? cursor,
   });
@@ -248,6 +275,15 @@ abstract interface class AdminRepository {
   Future<List<ReportRow>> inventoryValuation();
 
   Future<List<ReportRow>> cancelledOrRefunded({required DateTime from, required DateTime to});
+
+  /// Server-summed revenue per day over a window (`adminSalesByDay`). Never computed client-side.
+  Future<List<ReportRow>> salesByDay({required DateTime from, required DateTime to});
+
+  /// Top customers by lifetime revenue, aggregated server-side (`adminTopCustomers`).
+  Future<List<ReportRow>> topCustomers({int limit = 20});
+
+  /// Lifetime value of one customer, summed server-side (`adminCustomerValue`).
+  Future<ReportRow> customerValue(String uid);
 
   /// Returns CSV text generated from the same rows the on-screen report shows, so an export can
   /// never disagree with the dashboard.

@@ -59,6 +59,13 @@ final class UnconfiguredAuthRepository implements AuthRepository {
   Future<void> sendPasswordReset(String email) async => throw _unconfigured();
 
   @override
+  Future<void> confirmPasswordReset({
+    required String oobCode,
+    required String newPassword,
+  }) async =>
+      throw _unconfigured();
+
+  @override
   Future<UserProfile> ensureProfile() async => throw _unconfigured();
 
   @override
@@ -277,6 +284,12 @@ final class UnconfiguredAdminRepository implements AdminRepository {
   Future<Product> duplicateProduct(String productId) async => _no();
 
   @override
+  Future<Category> saveCategory(Category category) async => _no();
+
+  @override
+  Future<void> deleteCategory(String categoryId) async => _no();
+
+  @override
   Future<void> saveVariant(ProductVariant variant) async => _no();
 
   @override
@@ -310,6 +323,8 @@ final class UnconfiguredAdminRepository implements AdminRepository {
   Future<PagedResult<Order>> listOrders({
     OrderStatus? status,
     PaymentStatus? paymentStatus,
+    DeliveryMode? deliveryMode,
+    String? customerId,
     String? search,
     DateTime? from,
     DateTime? to,
@@ -374,6 +389,9 @@ final class UnconfiguredAdminRepository implements AdminRepository {
   Future<void> deleteCustomerPrice(String overrideId) async => _no();
 
   @override
+  Future<List<CustomerPriceOverride>> listCustomerPrices({String? productId, String? uid}) async => _no();
+
+  @override
   Future<List<Review>> moderationQueue({ReviewStatus status = ReviewStatus.pending}) async => _no();
 
   @override
@@ -395,7 +413,16 @@ final class UnconfiguredAdminRepository implements AdminRepository {
   Future<void> saveSettings(StoreSettings settings) async => _no();
 
   @override
-  Future<PagedResult<AuditLog>> auditLogs({String? entityType, String? action, int pageSize = 50, String? cursor}) async => _no();
+  Future<PagedResult<AuditLog>> auditLogs({
+    String? entityType,
+    String? action,
+    String? actorUid,
+    DateTime? from,
+    DateTime? to,
+    int pageSize = 50,
+    String? cursor,
+  }) async =>
+      _no();
 
   @override
   Future<List<ReportRow>> salesByProduct({required DateTime from, required DateTime to}) async => _no();
@@ -417,6 +444,15 @@ final class UnconfiguredAdminRepository implements AdminRepository {
 
   @override
   Future<List<ReportRow>> cancelledOrRefunded({required DateTime from, required DateTime to}) async => _no();
+
+  @override
+  Future<List<ReportRow>> salesByDay({required DateTime from, required DateTime to}) async => _no();
+
+  @override
+  Future<List<ReportRow>> topCustomers({int limit = 20}) async => _no();
+
+  @override
+  Future<ReportRow> customerValue(String uid) async => _no();
 
   @override
   Future<String> exportCsv({required String reportId, DateTime? from, DateTime? to}) async => _no();

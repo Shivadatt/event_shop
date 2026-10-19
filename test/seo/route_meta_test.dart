@@ -182,7 +182,7 @@ void main() {
       expect(disallowed, contains(OmRoutes.admin));
       expect(disallowed, isNot(contains('/')), reason: 'the root must never be disallowed');
       for (final path in disallowed) {
-        expect(path.contains(':'), isFalse, reason: 'robots cannot express $: patterns');
+        expect(path.contains(':'), isFalse, reason: 'robots cannot express ":" in $path');
       }
     });
 

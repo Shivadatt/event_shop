@@ -5,9 +5,9 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:om_events/app/seo/seo_documents.dart';
-import 'package:om_events/app/seo/route_meta.dart';
 import 'package:om_events/app/seo/om_seo.dart';
+import 'package:om_events/app/seo/route_meta.dart';
+import 'package:om_events/app/seo/seo_documents.dart';
 import 'package:om_events/data/models/store_settings.dart';
 
 const _origin = 'https://omevents.test';
@@ -133,8 +133,9 @@ void main() {
     });
 
     test('converts a local time to UTC before emitting', () {
-      // 12:00:00 at +05:30 is 06:30:00 UTC.
-      final local = DateTime(2026, 5, 6, 12, 0, 0).toUtc().subtract(const Duration(hours: 0));
+      // A wall-clock local time: lastModifiedIso must shift the same instant into UTC. Passing an
+      // already-UTC value here would make the conversion a no-op and prove nothing.
+      final local = DateTime(2026, 5, 6, 12);
       final iso = SitemapUrl(path: '/x', lastModified: local).lastModifiedIso;
       final roundTripped = DateTime.parse(iso);
       expect(roundTripped.toUtc(), local.toUtc());

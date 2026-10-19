@@ -42,18 +42,21 @@ class _InventoryViewState extends State<InventoryView> {
         title: 'Inventory',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const <Widget>[
-            _StockTable(),
-            _AdjustForm(),
-            _Ledger(),
-            SizedBox(height: OmSpacing.xxl),
+          children: <Widget>[
+            _StockTable(search: _search),
+            const _AdjustForm(),
+            const _Ledger(),
+            const SizedBox(height: OmSpacing.xxl),
           ],
         ),
       );
 }
 
 class _StockTable extends StatelessWidget {
-  const _StockTable();
+  const _StockTable({required this.search});
+
+  /// Owned by the page state so the field keeps its text across reloads and is disposed once.
+  final TextEditingController search;
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +114,7 @@ class _StockTable extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _Filters(controller: controller, search: _search),
+              _Filters(controller: controller, search: search),
               const SizedBox(height: OmSpacing.lg),
               OmAdminResponsiveList(
                 itemCount: rows.length,
@@ -261,7 +264,7 @@ class _ThresholdCell extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: <Widget>[
-          OmText('${product.lowStockThreshold}', variant: OmTextVariant.body),
+          OmText('${product.lowStockThreshold}'),
           OmIconButton(
             icon: Icons.edit_outlined,
             tooltip: 'Edit low-stock threshold for ${product.name}',
@@ -293,7 +296,6 @@ class _AdjustForm extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: OmSpacing.md),
                   child: OmAdminNotice(
-                    tone: OmTone.info,
                     icon: Icons.center_focus_strong_outlined,
                     message: 'Pointed at ${target.name}. Current mirror: ${target.stockQty}. '
                         'This figure is display only — the write recomputes the true balance.',
@@ -312,9 +314,10 @@ class _AdjustForm extends StatelessWidget {
                 children: <Widget>[
                   OmDropdown<String>(
                     label: 'Product',
-                    required: true,
                     value: adjust.productId.value,
-                    hint: 'Select a product',
+                    // `OmDropdown` has no `required` flag; the form refuses to submit without a
+                    // product (StockAdjustController.blockingIssues) and the hint says so.
+                    hint: 'Required — select a product',
                     items: Get.find<InventoryController>()
                         .visibleRows
                         .map((p) => p.id)
@@ -594,7 +597,6 @@ Future<int?> _promptThreshold({
               OmNumberField(
                 label: 'Low-stock threshold',
                 controller: controller,
-                min: 0,
                 helper: 'Flagged at or below this. Does not change the balance — only a movement '
                     'does.',
               ),

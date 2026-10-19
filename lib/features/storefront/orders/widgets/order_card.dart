@@ -68,7 +68,7 @@ final class OrderCard extends StatelessWidget {
               OrderStatusChip(status: order.status, dense: true),
               PaymentStatusChip(status: order.paymentStatus, dense: true),
               if (order.isGuest)
-                const OmBadge(label: 'Guest order', tone: OmTone.neutral, dense: true),
+                const OmBadge(label: 'Guest order', dense: true),
               if (order.couponCode.isNotEmpty)
                 OmBadge(label: order.couponCode, tone: OmTone.gold, dense: true, icon: Icons.local_offer),
             ],

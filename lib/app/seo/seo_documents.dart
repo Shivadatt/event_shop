@@ -27,7 +27,7 @@ final class SitemapUrl {
   String get lastModifiedIso {
     final at = lastModified;
     if (at == null) return '';
-    final iso = at.toUtc().toIso8601();
+    final iso = at.toUtc().toIso8601String();
     final fraction = iso.indexOf('.');
     final trimmed = fraction >= 0
         ? iso.substring(0, fraction)

@@ -124,9 +124,9 @@ class _AddressCard extends StatelessWidget {
                     label: 'Default delivery', tone: OmTone.gold, dense: true,
                     icon: Icons.star),
               if (entry.isDefaultBilling)
-                const OmBadge(label: 'Default billing', tone: OmTone.neutral, dense: true),
+                const OmBadge(label: 'Default billing', dense: true),
               if (entry.gstNumber.isNotEmpty)
-                OmBadge(label: 'GSTIN ${entry.gstNumber}', tone: OmTone.neutral, dense: true),
+                OmBadge(label: 'GSTIN ${entry.gstNumber}', dense: true),
             ],
           ),
           const SizedBox(height: OmSpacing.md),

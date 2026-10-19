@@ -113,7 +113,8 @@ final class StaticPageLinks extends StatelessWidget {
 
   final String? current;
 
-  static const List<(String, String)> _pages = <(String, String)>[
+  // Not `const`: `OmRoutes.forPolicy(...)` is a function call, and a const list cannot hold one.
+  static final List<(String, String)> _pages = <(String, String)>[
     (OmRoutes.about, 'About'),
     (OmRoutes.contact, 'Contact'),
     (OmRoutes.faq, 'FAQ'),
@@ -129,7 +130,7 @@ final class StaticPageLinks extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            OmText('MORE FROM THIS STORE'.toUpperCase(), style: context.omText.label),
+            OmText('MORE FROM THIS STORE'.toUpperCase(), variant: OmTextVariant.label),
             const SizedBox(height: OmSpacing.sm),
             Wrap(
               spacing: OmSpacing.sm,
@@ -187,7 +188,6 @@ final class StaticProse extends StatelessWidget {
           for (final paragraph in paragraphs) ...<Widget>[
             OmText(
               paragraph,
-              variant: OmTextVariant.body,
               overflow: TextOverflow.visible,
             ),
             const SizedBox(height: OmSpacing.sm),

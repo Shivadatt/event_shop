@@ -1,10 +1,10 @@
 import 'package:get/get.dart';
-import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/data/models/payment.dart';
 import 'package:om_events/data/models/store_settings.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/features/admin/shared/admin_controller_base.dart';
+import 'package:om_events/features/admin/shared/admin_csv.dart';
 
 /// Store settings editor.
 ///
@@ -44,8 +44,8 @@ final class SettingsController extends AdminController {
     }
   }
 
-  void set(void Function(_SettingsWriter w) body) {
-    final writer = _SettingsWriter(draft.value!, _commit);
+  void set(void Function(SettingsWriter w) body) {
+    final writer = SettingsWriter(draft.value!, _commit);
     body(writer);
   }
 
@@ -62,12 +62,12 @@ final class SettingsController extends AdminController {
         '= ${OmMoney.format(taxPaise)} tax → ${OmMoney.format(linePaise + taxPaise)}';
   }
 
-  String? _rupeeText(int paise) {
-    final asString = (paise / 100).toStringAsFixed(paise % 100 == 0 ? 0 : 2);
-    return asString;
+  /// Rupee text for the store-wide free-shipping threshold. A null threshold is *unset*, which is
+  /// not the same as zero, so it renders as blank rather than as "free above ₹0".
+  String get freeShippingText {
+    final paise = draft.value?.freeShippingAbovePaise;
+    return paise == null ? '' : AdminFormat.rupeeText(paise);
   }
-
-  String get freeShippingText => _rupeeText(draft.value?.freeShippingAbovePaise ?? 0);
 
   Future<bool> save() async {
     final settings = draft.value;
@@ -93,13 +93,11 @@ final class SettingsController extends AdminController {
 }
 
 /// Field-setter surface handed to `SettingsController.set`, so the view stays declarative.
-final class _SettingsWriter {
-  _SettingsWriter(this._base, this._commit);
+final class SettingsWriter {
+  SettingsWriter(this._base, this._commit);
 
   final StoreSettings _base;
   final void Function(StoreSettings) _commit;
-
-  StoreSettings get _next => _base;
 
   set shopName(String v) => _commit(_copy(shopName: v));
   set tagline(String v) => _commit(_copy(tagline: v));

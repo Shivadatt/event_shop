@@ -18,9 +18,9 @@ const {
 } = require('firebase-functions/v2/firestore');
 
 const {
-  admin,
   db,
   auth: adminAuth,
+  FieldValue,
   REGION,
   PRICE_EPSILON_PAISE,
   ADMIN_ROLES,
@@ -314,14 +314,14 @@ exports.ordersCreate = onCall(async (request) => {
       const number = orderNumber(settings.invoicePrefix || 'OME', year, seq);
 
       const paymentStatus = paymentMethod === 'cod' ? 'codPending' : paymentMethod === '' ? 'pending' : 'pending';
-      const createdAt = admin.firestore.FieldValue.serverTimestamp();
+      const createdAt = FieldValue.serverTimestamp();
 
       // ---- commit stock decrements + soldCount + movement ledger + notifications
       const movements = [];
       for (const line of priced) {
         tx.update(line.stockSnap.ref, {
-          [line.stockField]: admin.firestore.FieldValue.increment(-line.qty),
-          soldCount: line.variantRef ? admin.firestore.FieldValue.increment(0) : admin.firestore.FieldValue.increment(line.qty),
+          [line.stockField]: FieldValue.increment(-line.qty),
+          soldCount: line.variantRef ? FieldValue.increment(0) : FieldValue.increment(line.qty),
           updatedAt: createdAt,
         });
         const balanceAfter = toInt(line.stockSnap.get(line.stockField)) - line.qty;
@@ -357,8 +357,11 @@ exports.ordersCreate = onCall(async (request) => {
           couponDiscountPaise: totals.couponDiscountPaise,
           shippingPaise: totals.shippingPaise,
           taxPaise: totals.taxPaise,
+          // roundingPaise is the informational rupee-rounding delta only.
           roundingPaise: totals.payableRoundedPaise - totals.grandTotalPaise,
-          grandTotalPaise: totals.grandTotalPaise,
+          // Store the rupee-rounded amount the customer is actually charged, so payment marking
+          // and revenue reports never drift from the checkout total by up to 99 paise.
+          grandTotalPaise: totals.payableRoundedPaise,
           paidPaise: 0,
           refundedPaise: 0,
         },
@@ -372,7 +375,7 @@ exports.ordersCreate = onCall(async (request) => {
       });
 
       if (couponResult.discountPaise > 0 || couponResult.freeShipping) {
-        tx.update(couponRef, { usedCount: admin.firestore.FieldValue.increment(1), updatedAt: createdAt });
+        tx.update(couponRef, { usedCount: FieldValue.increment(1), updatedAt: createdAt });
         if (redemptionRef) {
           const existing = await tx.get(redemptionRef);
           tx.set(redemptionRef, { couponCode, uid: uid || null, count: toInt(existing.exists ? existing.data().count : 0) + 1, updatedAt: createdAt }, { merge: true });
@@ -401,13 +404,13 @@ exports.ordersCreate = onCall(async (request) => {
     // Buyer notification (best-effort, outside the money transaction).
     if (result.uid) {
       await db.collection('notifications').doc().set({
-        uid: result.uid, title: 'Order placed', body: `Order ${result.number} confirmed.`, kind: 'orderPlaced', entityId: result.orderId, route: `/account/order/${result.orderId}`, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        uid: result.uid, title: 'Order placed', body: `Order ${result.number} confirmed.`, kind: 'orderPlaced', entityId: result.orderId, route: `/account/order/${result.orderId}`, isRead: false, createdAt: FieldValue.serverTimestamp(),
       });
     }
     await writeAudit(db, {
       action: 'order.create', entityType: 'order', entityId: result.orderId,
       actorUid: result.uid || '', actorRole: result.caller ? result.caller.role : 'guest',
-      summary: `Created ${result.number} for ${result.totals.grandTotalPaise} paise`, after: { grandTotalPaise: result.totals.grandTotalPaise, orderNumber: result.number },
+      summary: `Created ${result.number} for ${result.totals.payableRoundedPaise} paise`, after: { grandTotalPaise: result.totals.payableRoundedPaise, orderNumber: result.number },
     });
 
     return {
@@ -433,7 +436,9 @@ function totalsToReceipt(t) {
   return {
     subtotalPaise: t.subtotalPaise, slabDiscountPaise: t.slabSavingsPaise, couponDiscountPaise: t.couponDiscountPaise,
     shippingPaise: t.shippingPaise, taxPaise: t.taxPaise, roundingPaise: t.payableRoundedPaise - t.grandTotalPaise,
-    grandTotalPaise: t.grandTotalPaise, paidPaise: 0, refundedPaise: 0,
+    // grandTotalPaise on the wire is the rupee-rounded amount the customer is charged, matching the
+    // stored document and replay receipts; roundingPaise stays informational.
+    grandTotalPaise: t.payableRoundedPaise, paidPaise: 0, refundedPaise: 0,
   };
 }
 function receiptFromOrder(o, { wasReplay }) {
@@ -514,12 +519,12 @@ async function transitionStatus(ref, { from, to, actor, note, restoreStock, canc
     if (current !== from) fail('failed-precondition', `Order status changed concurrently (now ${current}).`);
     const update = {
       status: to,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
     if (cancelledReason) update.cancelledReason = cancelledReason;
     tx.update(ref, update);
     tx.set(ref.collection('history').doc(), {
-      at: admin.firestore.FieldValue.serverTimestamp(), status: to, note,
+      at: FieldValue.serverTimestamp(), status: to, note,
       actorRole: actor.role || 'staff', actorUid: actor.uid,
     });
 
@@ -535,11 +540,11 @@ async function transitionStatus(ref, { from, to, actor, note, restoreStock, canc
         const stockSnap = await tx.get(stockRef);
         if (!stockSnap.exists) continue;
         const balanceAfter = toInt(stockSnap.get('stockQty')) + qty;
-        tx.update(stockRef, { stockQty: balanceAfter, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        tx.update(stockRef, { stockQty: balanceAfter, updatedAt: FieldValue.serverTimestamp() });
         tx.set(db.collection('inventory_movements').doc(), {
           productId: item.productId, variantId: item.variantId || null, kind: 'cancelRestore', quantity: qty,
           balanceAfter, orderId, reason: 'cancellation', reference: snap.data().orderNumber, actorUid: actor.uid,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       }
       tx.update(ref, { items: snap.data().items.map((i) => ({ ...i, isStockDeducted: false })) });
@@ -557,7 +562,7 @@ async function transitionStatus(ref, { from, to, actor, note, restoreStock, canc
   if (buyerUid) {
     await db.collection('notifications').doc().set({
       uid: buyerUid, title: 'Order updated', body: `Order is now ${to}.`, kind: 'orderUpdate',
-      entityId: ref.id, route: `/account/order/${ref.id}`, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      entityId: ref.id, route: `/account/order/${ref.id}`, isRead: false, createdAt: FieldValue.serverTimestamp(),
     });
   }
   return orderSnap;
@@ -622,7 +627,7 @@ exports.paymentsConfirm = onCall(async (request) => {
     // simply re-reads whatever the webhook already settled, so the client UI reflects the truth.
     const settled = pay.data().status === 'captured';
     if (settled) {
-      await ref.update({ paymentStatus: 'paid', transactionReference: pay.data().transactionReference || '', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      await ref.update({ paymentStatus: 'paid', transactionReference: pay.data().transactionReference || '', updatedAt: FieldValue.serverTimestamp() });
     }
     return { captured: settled, status: pay.data().status, message: settled ? 'Payment captured.' : 'Awaiting payment confirmation.' };
   });
@@ -669,15 +674,15 @@ exports.adminOrderMarkPayment = onCall(async (request) => {
         transactionReference: String(data.transactionReference || ''),
         paidPaise: isCod ? 0 : amountPaise,
         'totals.paidPaise': isCod ? 0 : amountPaise,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       const payRef = db.collection('payments').doc(String(data.orderId));
       tx.set(payRef, {
         orderId: s.id, amountPaise, uid: s.data().userId, gateway: isCod ? 'cod' : 'manual', method: String(data.method || ''),
         status: isCod ? 'created' : 'captured', transactionReference: String(data.transactionReference || ''),
         refundedPaise: toInt(s.data().totals.refundedPaise),
-        createdAt: s.data().createdAt || admin.firestore.FieldValue.serverTimestamp(),
-        capturedAt: isCod ? null : admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: s.data().createdAt || FieldValue.serverTimestamp(),
+        capturedAt: isCod ? null : FieldValue.serverTimestamp(),
       }, { merge: true });
     });
     await writeAudit(db, { action: 'payment.mark', entityType: 'order', entityId: ref.id, actorUid: caller.uid, actorRole: caller.role, summary: `Marked ${paymentStatus} via ${data.method}`, after: { paymentStatus, amountPaise } });
@@ -703,7 +708,7 @@ exports.adminOrderRefund = onCall(async (request) => {
       tx.update(ref, {
         'totals.refundedPaise': current.refundedPaise,
         paymentStatus: current.refundedPaise >= toInt(current.paidPaise) ? 'refunded' : 'partiallyRefunded',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     });
     await writeAudit(db, { action: 'refund.issue', entityType: 'order', entityId: ref.id, actorUid: caller.uid, actorRole: caller.role, summary: `Refunded ${amountPaise} paise: ${data.reason}`, before: { paid }, after: { refundPaise: amountPaise } });
@@ -750,7 +755,7 @@ exports.adminProductSave = onCall(async (request) => {
     const before = (await ref.get()).data() || null;
     const writable = stripProtectedFields(product);
     // stockQty / soldCount / ratingAvg are owned by other paths and must never be clobbered here.
-    await ref.set({ ...writable, slabs, updatedAt: admin.firestore.FieldValue.serverTimestamp(), createdAt: before ? before.createdAt : admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set({ ...writable, slabs, updatedAt: FieldValue.serverTimestamp(), createdAt: before ? before.createdAt : FieldValue.serverTimestamp() }, { merge: true });
     await writeAudit(db, { action: slabs.length ? 'pricing.slab_write' : 'product.update', entityType: 'product', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `Saved ${product.name}`, before: before ? { slabs: before.slabs } : null, after: { slabs } });
     // The generated id must cross the wire — a brand-new product's id is unknown to the caller.
     return { id, ...(await ref.get()).data() };
@@ -778,7 +783,7 @@ exports.adminProductArchive = onCall(async (request) => {
     if (!snap.exists) fail('not-found', 'Product not found.');
     const next = data.archived === true ? 'archived' : 'active';
     const before = snap.data().status;
-    await ref.update({ status: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await ref.update({ status: next, updatedAt: FieldValue.serverTimestamp() });
     await writeAudit(db, { action: 'product.status', entityType: 'product', entityId: ref.id, actorUid: caller.uid, actorRole: caller.role, summary: `${before} -> ${next}`, before: { status: before }, after: { status: next } });
     return { ok: true };
   });
@@ -803,7 +808,7 @@ exports.adminVariantSave = onCall(async (request) => {
     const writable = { ...variant };
     delete writable.stockQty;
     delete writable.id;
-    await ref.set({ ...writable, slabs, updatedAt: admin.firestore.FieldValue.serverTimestamp(), createdAt: before ? before.createdAt : admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set({ ...writable, slabs, updatedAt: FieldValue.serverTimestamp(), createdAt: before ? before.createdAt : FieldValue.serverTimestamp() }, { merge: true });
     await writeAudit(db, { action: 'pricing.variant_write', entityType: 'variant', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `Saved variant ${variant.name}`, before: before ? { slabs: before.slabs, stockQty: before.stockQty } : null, after: { slabs } });
     return { id, ...(await ref.get()).data() };
   });
@@ -835,18 +840,18 @@ exports.inventoryAdjust = onCall(async (request) => {
       if (!snap.exists) fail('not-found', 'Stock item not found.');
       const next = toInt(snap.get('stockQty')) + deltaQty;
       if (next < 0) fail('failed-precondition', `Adjustment would drive stock negative (currently ${toInt(snap.get('stockQty'))}).`);
-      tx.update(stockRef, { stockQty: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(stockRef, { stockQty: next, updatedAt: FieldValue.serverTimestamp() });
       tx.set(db.collection('inventory_movements').doc(), {
         productId, variantId, kind, quantity: Math.abs(deltaQty), balanceAfter: next,
         orderId: '', reason: String(data.reason || ''), reference: '', unitCostPaise: data.unitCostPaise == null ? null : toInt(data.unitCostPaise),
-        actorUid: caller.uid, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        actorUid: caller.uid, createdAt: FieldValue.serverTimestamp(),
       });
       return next;
     });
 
     const product = await db.collection('products').doc(productId).get();
     if (product.exists && balanceAfter >= 0 && balanceAfter <= toInt(product.data().lowStockThreshold, 5)) {
-      await db.collection('inventory_alerts').doc(`${productId}_${variantId || 'base'}`).set({ productId, variantId, balanceAfter, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      await db.collection('inventory_alerts').doc(`${productId}_${variantId || 'base'}`).set({ productId, variantId, balanceAfter, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     await writeAudit(db, { action: 'stock.adjust', entityType: 'product', entityId: productId, actorUid: caller.uid, actorRole: caller.role, summary: `${kind} ${deltaQty} -> ${balanceAfter}`, after: { deltaQty, balanceAfter } });
     return { balanceAfter };
@@ -865,9 +870,9 @@ exports.inventorySetOpening = onCall(async (request) => {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(stockRef);
       if (!snap.exists) fail('not-found', 'Item not found.');
-      tx.update(stockRef, { stockQty: quantity, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(stockRef, { stockQty: quantity, updatedAt: FieldValue.serverTimestamp() });
       tx.set(db.collection('inventory_movements').doc(), {
-        productId, variantId, kind: 'opening', quantity, balanceAfter: quantity, orderId: '', reason: String(data.reason || 'Opening balance'), actorUid: caller.uid, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        productId, variantId, kind: 'opening', quantity, balanceAfter: quantity, orderId: '', reason: String(data.reason || 'Opening balance'), actorUid: caller.uid, createdAt: FieldValue.serverTimestamp(),
       });
     });
     await writeAudit(db, { action: 'stock.opening', entityType: 'product', entityId: productId, actorUid: caller.uid, actorRole: caller.role, summary: `Opening stock ${quantity}`, after: { quantity } });
@@ -901,7 +906,7 @@ exports.reviewSubmit = onCall(async (request) => {
     await db.collection('reviews').doc(id).set({
       productId, uid: caller.uid, rating, title, body, authorName: String(data.authorName || caller.displayName || caller.email || ''),
       status: 'pending', isVerifiedPurchase: verified, orderId: String(data.orderId || ''), images, reportCount: 0, moderatorNote: '',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
     return { id };
   });
@@ -915,7 +920,7 @@ exports.reviewReport = onCall(async (request) => {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) fail('not-found', 'Review not found.');
-      tx.update(ref, { reportCount: admin.firestore.FieldValue.increment(1), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(ref, { reportCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
     });
     return { ok: true };
   });
@@ -928,7 +933,7 @@ exports.adminReviewModerate = onCall(async (request) => {
     const ref = db.collection('reviews').doc(String(data.reviewId));
     const snap = await ref.get();
     if (!snap.exists) fail('not-found', 'Review not found.');
-    await ref.update({ status: String(data.decision), moderatorNote: String(data.note || ''), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await ref.update({ status: String(data.decision), moderatorNote: String(data.note || ''), updatedAt: FieldValue.serverTimestamp() });
     await writeAudit(db, { action: 'review.moderate', entityType: 'review', entityId: ref.id, actorUid: caller.uid, actorRole: caller.role, summary: `-> ${data.decision}`, before: { status: snap.data().status }, after: { status: data.decision } });
     return { ok: true };
   });
@@ -948,7 +953,7 @@ exports.adminWholesaleDecide = onCall(async (request) => {
     const uid = app.data().uid;
 
     await db.runTransaction(async (tx) => {
-      tx.update(appRef, { status: decision, reviewNote: String(data.note || ''), reviewedBy: caller.uid, reviewedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(appRef, { status: decision, reviewNote: String(data.note || ''), reviewedBy: caller.uid, reviewedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       const userRef = db.collection('users').doc(uid);
       const userSnap = await tx.get(userRef);
       // ONLY an approved application grants wholesale pricing: role flips to wholesale on approval;
@@ -956,12 +961,12 @@ exports.adminWholesaleDecide = onCall(async (request) => {
       tx.update(userRef, {
         wholesaleStatus: decision,
         role: decision === 'approved' ? 'wholesale' : (userSnap.exists ? userSnap.data().role : 'customer'),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     });
 
     await writeAudit(db, { action: 'wholesale.decide', entityType: 'user', entityId: uid, actorUid: caller.uid, actorRole: caller.role, summary: `Application ${appId} ${decision}`, after: { decision } });
-    await db.collection('notifications').doc().set({ uid, title: 'Wholesale application', body: `Your application was ${decision}.`, kind: 'wholesaleDecision', entityId: appId, route: '/account/wholesale', isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    await db.collection('notifications').doc().set({ uid, title: 'Wholesale application', body: `Your application was ${decision}.`, kind: 'wholesaleDecision', entityId: appId, route: '/account/wholesale', isRead: false, createdAt: FieldValue.serverTimestamp() });
     return { ok: true };
   });
 });
@@ -977,7 +982,7 @@ exports.adminCustomerRole = onCall(async (request) => {
     if (uid === caller.uid) fail('failed-precondition', 'You cannot change your own role.');
     const ref = db.collection('users').doc(uid);
     const before = (await ref.get()).data() || null;
-    await ref.update({ role, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await ref.update({ role, updatedAt: FieldValue.serverTimestamp() });
     // Keep the JWT claims as an ADVISORY mirror; rules and every function still read the document.
     try {
       await adminAuth.setCustomRole(uid, ['staff', 'admin', 'owner'].includes(role) ? role : null);
@@ -994,7 +999,7 @@ exports.adminCustomerBlock = onCall(async (request) => {
     const uid = String(data.uid);
     const blocked = data.blocked === true;
     if (uid === caller.uid) fail('failed-precondition', 'You cannot block your own account.');
-    await db.collection('users').doc(uid).update({ isBlocked: blocked, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await db.collection('users').doc(uid).update({ isBlocked: blocked, updatedAt: FieldValue.serverTimestamp() });
     await writeAudit(db, { action: blocked ? 'user.block' : 'user.unblock', entityType: 'user', entityId: uid, actorUid: caller.uid, actorRole: caller.role, summary: String(data.reason || '') });
     return { ok: true };
   });
@@ -1020,7 +1025,7 @@ exports.adminCouponSave = onCall(async (request) => {
       appliesToCategoryIds: Array.isArray(data.appliesToCategoryIds) ? data.appliesToCategoryIds : [],
       appliesToProductIds: Array.isArray(data.appliesToProductIds) ? data.appliesToProductIds : [],
       excludesWholesale: data.excludesWholesale === true, description: String(data.description || ''),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     await writeAudit(db, { action: 'coupon.save', entityType: 'coupon', entityId: code, actorUid: caller.uid, actorRole: caller.role, summary: `Saved ${code}` });
     return (await ref.get()).data();
@@ -1042,20 +1047,187 @@ exports.adminCustomerPriceSave = onCall(async (request) => {
   return guarded(async () => {
     const caller = await requireRole(request, ['admin', 'owner']);
     const data = (request.data || {}).override || {};
+    const uid = String(data.uid || '');
+    const productId = String(data.productId || '');
+    if (!uid || !productId) fail('invalid-argument', 'An override needs both a customer and a product.');
+    // A ₹0.00 contract price makes the item free, and the admin form's rupee parser returns 0 for
+    // anything it cannot read — so the amount is re-checked here instead of trusting the client.
+    const unitPricePaise = toInt(data.unitPricePaise, -1);
+    if (unitPricePaise <= 0) fail('invalid-argument', 'Contract price must be a positive amount in paise.');
     const id = data.id ? String(data.id) : newId();
     const ref = db.collection('customer_price_overrides').doc(id);
-    await ref.set({ uid: String(data.uid), productId: String(data.productId), variantId: data.variantId || null, unitPricePaise: toInt(data.unitPricePaise), note: String(data.note || ''), createdBy: caller.uid, expiresAt: data.expiresAt || null, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-    await writeAudit(db, { action: 'pricing.override', entityType: 'customer_price', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `${data.uid}/${data.productId} @ ${data.unitPricePaise}` });
-    return (await ref.get()).data();
+    // A caller-supplied id is an *update*, so the row must already exist and must already belong
+    // to this customer/product pair. Without this, a mistyped id silently creates a second row for
+    // the same customer at a different price, and an existing id from another pair gets repointed.
+    const before = (await ref.get()).data() || null;
+    if (before && (before.uid !== uid || before.productId !== productId)) {
+      fail('invalid-argument', 'That override id belongs to a different customer or product.');
+    }
+    await ref.set({ uid, productId, variantId: data.variantId || null, unitPricePaise, note: String(data.note || ''), createdBy: before ? before.createdBy : caller.uid, expiresAt: data.expiresAt || null, createdAt: before ? before.createdAt : FieldValue.serverTimestamp() }, { merge: true });
+    await writeAudit(db, { action: 'pricing.override', entityType: 'customer_price', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `${uid}/${productId} @ ${unitPricePaise}` });
+    // Return the id: the admin list needs the real document key to edit or delete a row, and a
+    // client-fabricated key would leave the stored row unreachable.
+    return { id, ...(await ref.get()).data() };
   });
 });
 
 exports.adminCustomerPriceDelete = onCall(async (request) => {
   return guarded(async () => {
     const caller = await requireRole(request, ['admin', 'owner']);
-    await db.collection('customer_price_overrides').doc(String((request.data || {}).overrideId)).delete();
-    await writeAudit(db, { action: 'pricing.override_delete', entityType: 'customer_price', entityId: String((request.data || {}).overrideId), actorUid: caller.uid, actorRole: caller.role, summary: 'Removed override' });
+    const overrideId = String((request.data || {}).overrideId);
+    // Firestore deletes succeed on a missing document, so without this read an admin could be told
+    // an override was removed while the price kept applying.
+    const existing = await db.collection('customer_price_overrides').doc(overrideId).get();
+    if (!existing.exists) fail('not-found', 'That override no longer exists.');
+    await existing.ref.delete();
+    await writeAudit(db, { action: 'pricing.override_delete', entityType: 'customer_price', entityId: overrideId, actorUid: caller.uid, actorRole: caller.role, summary: 'Removed override' });
+    return { ok: true, id: overrideId };
+  });
+});
+
+// ---- customer price overrides READ (server-gated; never a direct client collection read) --------
+exports.adminCustomerPriceList = onCall(async (request) => {
+  return guarded(async () => {
+    await requireRole(request, ADMIN_ROLES);
+    const data = request.data || {};
+    const productId = data.productId ? String(data.productId) : null;
+    const uid = data.uid ? String(data.uid) : null;
+    let query = db.collection('customer_price_overrides');
+    if (productId) query = query.where('productId', '==', productId);
+    if (uid) query = query.where('uid', '==', uid);
+    const snap = await query.get();
+    return { rows: snap.docs.map((d) => ({ id: d.id, ...d.data() })) };
+  });
+});
+
+// =================================================================================================
+// CATEGORIES — privileged category writes routed through a callable (audit + server id minting)
+// =================================================================================================
+exports.adminCategorySave = onCall(async (request) => {
+  return guarded(async () => {
+    const caller = await requireRole(request, ADMIN_ROLES);
+    const category = ((request.data || {}).category) || {};
+    if (!String(category.name || '').trim()) fail('invalid-argument', 'Category name is required.');
+    // productCount is maintained by the write trigger, never by an admin payload.
+    const protectedFields = ['productCount', 'createdAt'];
+    const writable = {};
+    for (const [k, v] of Object.entries(category)) if (!protectedFields.includes(k)) writable[k] = v;
+    const id = category.id ? String(category.id) : newId();
+    const ref = db.collection('categories').doc(id);
+    const before = (await ref.get()).data() || null;
+    await ref.set({
+      ...writable,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: before ? before.createdAt : FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await writeAudit(db, { action: 'category.save', entityType: 'category', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `Saved ${category.name}` });
+    return { id, ...(await ref.get()).data() };
+  });
+});
+
+exports.adminCategoryDelete = onCall(async (request) => {
+  return guarded(async () => {
+    const caller = await requireRole(request, ADMIN_ROLES);
+    const id = String((request.data || {}).categoryId || '');
+    if (!id) fail('invalid-argument', 'Category id is required.');
+    const ref = db.collection('categories').doc(id);
+    if (!(await ref.get()).exists) fail('not-found', 'Category not found.');
+    // Refuse to orphan a category that still has children or products attached.
+    const [children, products] = await Promise.all([
+      db.collection('categories').where('parentId', '==', id).limit(1).get(),
+      db.collection('products').where('categoryId', '==', id).limit(1).get(),
+    ]);
+    if (!children.empty) fail('failed-precondition', 'Category has subcategories.');
+    if (!products.empty) fail('failed-precondition', 'Category still has products.');
+    await ref.delete();
+    await writeAudit(db, { action: 'category.delete', entityType: 'category', entityId: id, actorUid: caller.uid, actorRole: caller.role, summary: `Deleted ${id}` });
     return { ok: true };
+  });
+});
+
+// =================================================================================================
+// AGGREGATE REPORTS — server-summed so a browser can never forge revenue figures
+// =================================================================================================
+
+// Revenue per day over a window, keyed by ISO yyyy-mm-dd. Reads the stored (rupee-rounded)
+// grandTotalPaise so recorded revenue equals what each customer was charged.
+exports.adminSalesByDay = onCall(async (request) => {
+  return guarded(async () => {
+    await requireRole(request, ADMIN_ROLES);
+    const data = request.data || {};
+    const from = data.from ? new Date(data.from) : null;
+    const to = data.to ? new Date(data.to) : null;
+    let query = db.collection('orders');
+    if (from) query = query.where('createdAt', '>=', from);
+    const snap = await query.get();
+    const byDay = {};
+    for (const d of snap.docs) {
+      const created = d.data().createdAt && d.data().createdAt.toDate ? d.data().createdAt.toDate() : null;
+      if (!created) continue;
+      if (to && created > to) continue;
+      const key = created.toISOString().slice(0, 10);
+      byDay[key] = byDay[key] || { revenuePaise: 0, units: 0 };
+      byDay[key].revenuePaise += toInt(d.data().totals && d.data().totals.grandTotalPaise);
+      byDay[key].units += 1;
+    }
+    const rows = Object.entries(byDay)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, v]) => ({ key: day, label: day, units: v.units, revenuePaise: v.revenuePaise, costPaise: 0, discountPaise: 0 }));
+    return { rows };
+  });
+});
+
+// Top customers by summed revenue over the full order history. Aggregate runs server-side; only the
+// requested number of rows crosses the wire.
+exports.adminTopCustomers = onCall(async (request) => {
+  return guarded(async () => {
+    await requireRole(request, ADMIN_ROLES);
+    const limit = Math.max(1, Math.min(toInt((request.data || {}).limit, 20), 200));
+    const snap = await db.collection('orders').get();
+    const byUid = {};
+    for (const d of snap.docs) {
+      const uid = String(d.data().userId || '');
+      if (!uid) continue; // guests have no durable customer row
+      byUid[uid] = byUid[uid] || { revenuePaise: 0, units: 0 };
+      byUid[uid].revenuePaise += toInt(d.data().totals && d.data().totals.grandTotalPaise);
+      byUid[uid].units += (Array.isArray(d.data().items) ? d.data().items : []).reduce((s, it) => s + toInt(it.qty), 0);
+    }
+    const ranked = Object.entries(byUid)
+      .sort((a, b) => b[1].revenuePaise - a[1].revenuePaise)
+      .slice(0, limit);
+    const rows = [];
+    for (const [uid, v] of ranked) {
+      const profile = await callerProfile(uid);
+      const label = (profile && (profile.displayName || profile.email)) || uid;
+      rows.push({ key: uid, label, units: v.units, revenuePaise: v.revenuePaise, costPaise: 0, discountPaise: 0 });
+    }
+    return { rows };
+  });
+});
+
+// Lifetime value of a single customer: total charged, units bought, order count.
+exports.adminCustomerValue = onCall(async (request) => {
+  return guarded(async () => {
+    await requireRole(request, ADMIN_ROLES);
+    const uid = String((request.data || {}).uid || '');
+    if (!uid) fail('invalid-argument', 'Customer uid is required.');
+    const snap = await db.collection('orders').where('userId', '==', uid).get();
+    let revenuePaise = 0;
+    let units = 0;
+    let refundedPaise = 0;
+    let discountPaise = 0;
+    for (const d of snap.docs) {
+      const t = d.data().totals || {};
+      revenuePaise += toInt(t.grandTotalPaise);
+      refundedPaise += toInt(t.refundedPaise);
+      discountPaise += toInt(t.slabDiscountPaise) + toInt(t.couponDiscountPaise);
+      units += (Array.isArray(d.data().items) ? d.data().items : []).reduce((s, it) => s + toInt(it.qty), 0);
+    }
+    const profile = await callerProfile(uid);
+    const label = (profile && (profile.displayName || profile.email)) || uid;
+    // `orderCount` and `refundedPaise` are separate fields because the panel prints both as money
+    // or as a count, and an earlier version put snap.size in the discount slot.
+    return { row: { key: uid, label, units, orderCount: snap.size, revenuePaise, costPaise: 0, discountPaise, refundedPaise } };
   });
 });
 
@@ -1066,7 +1238,7 @@ exports.adminSettingsSave = onCall(async (request) => {
     const data = (request.data || {}).settings || {};
     const writable = { ...data };
     delete writable.updatedAt;
-    await db.collection('store_settings').doc('store').set({ ...writable, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await db.collection('store_settings').doc('store').set({ ...writable, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     clearSettingsCache();
     await writeAudit(db, { action: 'settings.update', entityType: 'store_settings', entityId: 'store', actorUid: caller.uid, actorRole: caller.role, summary: 'Store settings updated' });
     return (await db.collection('store_settings').doc('store').get()).data();
@@ -1079,8 +1251,8 @@ exports.adminSupportUpdate = onCall(async (request) => {
     const caller = await requireRole(request, ADMIN_ROLES);
     const data = request.data || {};
     const ref = db.collection('support_requests').doc(String(data.ticketId));
-    const update = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-    if (data.message) update.messages = admin.firestore.FieldValue.arrayUnion({ from: caller.uid, body: String(data.message).slice(0, 4000), at: new Date(), isStaff: true });
+    const update = { updatedAt: FieldValue.serverTimestamp() };
+    if (data.message) update.messages = FieldValue.arrayUnion({ from: caller.uid, body: String(data.message).slice(0, 4000), at: new Date(), isStaff: true });
     if (data.status) update.status = String(data.status);
     await ref.update(update);
     return { ok: true };
@@ -1268,7 +1440,7 @@ async function importCsv(caller, csvText) {
     batch.set(db.collection('products').doc(id), {
       name: p.name, sku: p.sku, slug: slugify(p.name), retailPricePaise: p.retail, slabs: p.slabs,
       status: 'draft', stockQty: 0, soldCount: 0, ratingAvg: 0, ratingCount: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
   }
   await batch.commit();
@@ -1324,7 +1496,7 @@ exports.accountEnsure = onCall(async (request) => {
       tx.set(ref, {
         uid, email: request.auth.token.email || '', phone: '', displayName: String((request.data || {}).displayName || ''),
         role: 'customer', wholesaleStatus: 'none', isBlocked: false, notifyEmail: true, notifyWhatsapp: false, notifySms: false,
-        wishlistProductIds: [], createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        wishlistProductIds: [], createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       return true;
     });
@@ -1344,7 +1516,7 @@ exports.onWholesaleApplicationCreated = onDocumentCreated('wholesale_application
   if (!snap) return;
   const uid = snap.data().uid;
   if (!uid) return;
-  await db.collection('users').doc(uid).set({ wholesaleStatus: 'pending', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  await db.collection('users').doc(uid).set({ wholesaleStatus: 'pending', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   await writeAudit(db, { action: 'wholesale.apply', entityType: 'user', entityId: uid, actorUid: uid, actorRole: 'customer', summary: `Application ${snap.id}` });
 });
 
@@ -1372,7 +1544,7 @@ exports.onProductWritten = onDocumentWritten('products/{productId}', async (even
   const categoryId = (after && after.data().categoryId) || (before && before.data().categoryId);
   if (!categoryId) return;
   const active = await db.collection('products').where('categoryId', '==', categoryId).where('status', '==', 'active').get();
-  await db.collection('categories').doc(categoryId).set({ productCount: active.size, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  await db.collection('categories').doc(categoryId).set({ productCount: active.size, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 });
 
 // Public variant list for a product, with cost price stripped. Firestore rules keep the raw

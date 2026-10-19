@@ -99,7 +99,7 @@ final class OmSlabGridEditor extends StatelessWidget {
             OmCard(
               child: OmEmptyState(
                 compact: true,
-                icon: Icons.table_rows_narrow,
+                icon: Icons.table_rows_outlined,
                 title: 'No quantity bands',
                 message: 'Every quantity pays the shelf price. Add a band to discount bulk orders.',
                 actionLabel: enabled ? 'Add band' : null,
@@ -249,14 +249,13 @@ class _SlabRowEditorState extends State<_SlabRowEditor> {
                 enabled: widget.enabled,
                 required: true,
                 min: 1,
-                validator: (value) => OmValidators.wholeQuantity(value, minimum: 1),
+                validator: OmValidators.wholeQuantity,
                 onChanged: (_) => _commit(),
               ),
               OmNumberField(
                 label: 'To quantity',
                 controller: _max,
                 enabled: widget.enabled,
-                min: 0,
                 helper: 'Leave blank for an open-ended band (usually the last one).',
                 validator: (value) {
                   final text = (value ?? '').trim();
@@ -274,7 +273,7 @@ class _SlabRowEditorState extends State<_SlabRowEditor> {
                 required: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 helper: 'Charged for every unit in this band.',
-                validator: (value) => OmValidators.price(value),
+                validator: OmValidators.price,
                 onChanged: (_) => _commit(),
               ),
               _SlabRowEffect(
@@ -285,8 +284,8 @@ class _SlabRowEditorState extends State<_SlabRowEditor> {
             ],
           ),
           if (widget.highlighted)
-            Padding(
-              padding: const EdgeInsets.only(top: OmSpacing.xs),
+            const Padding(
+              padding: EdgeInsets.only(top: OmSpacing.xs),
               child: OmText(
                 'The validator rejected this row.',
                 variant: OmTextVariant.caption,
@@ -320,7 +319,7 @@ class _SlabRowEffect extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        OmText('EFFECT', variant: OmTextVariant.label),
+        const OmText('EFFECT', variant: OmTextVariant.label),
         const SizedBox(height: OmSpacing.xs),
         if (slab.unitPricePaise <= 0)
           const OmText('No price entered', variant: OmTextVariant.caption)
@@ -392,7 +391,7 @@ class _SlabPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          OmText('Preview at these order quantities', variant: OmTextVariant.bodyStrong),
+          const OmText('Preview at these order quantities', variant: OmTextVariant.bodyStrong),
           const SizedBox(height: OmSpacing.xs),
           const OmText(
             'Calculated by the same pricing engine the cart uses, from the unsaved grid on screen.',
@@ -404,11 +403,10 @@ class _SlabPreview extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: OmSpacing.sm),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   SizedBox(
                     width: 76,
-                    child: OmText('${row.qty} units', variant: OmTextVariant.body),
+                    child: OmText('${row.qty} units'),
                   ),
                   Expanded(
                     child: OmText(

@@ -166,7 +166,7 @@ class _OmImagePickerFieldState extends State<OmImagePickerField> {
                   label: 'Choose image',
                   icon: Icons.add_photo_alternate_outlined,
                   variant: OmButtonVariant.outline,
-                  onPressed: editor.canAddMore ? () => editor.addFromPicker() : null,
+                  onPressed: editor.canAddMore ? editor.addFromPicker : null,
                 ),
               ],
             ],

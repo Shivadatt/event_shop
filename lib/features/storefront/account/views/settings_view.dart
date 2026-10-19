@@ -30,7 +30,7 @@ final class AccountSettingsView extends GetView<AccountSettingsController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                OmText('Sign in to change settings.', variant: OmTextVariant.h3),
+                const OmText('Sign in to change settings.', variant: OmTextVariant.h3),
                 const SizedBox(height: OmSpacing.md),
                 OmButton(
                   label: 'Sign in',
@@ -82,7 +82,7 @@ final class AccountSettingsView extends GetView<AccountSettingsController> {
                     const OmLoading(message: 'Saving…'),
                   ],
                   if (controller.saved.value && failure == null)
-                    OmText('Saved by the store.',
+                    const OmText('Saved by the store.',
                         variant: OmTextVariant.caption, color: OmColors.success),
                   if (failure != null)
                     OmText(failure.message,
@@ -138,7 +138,7 @@ final class AccountSettingsView extends GetView<AccountSettingsController> {
                         onPressed: controller.clearRecentlyViewed,
                       ),
                       if (controller.clearedHistory.value)
-                        OmText('History cleared.',
+                        const OmText('History cleared.',
                             variant: OmTextVariant.caption, color: OmColors.success),
                     ],
                   ),
@@ -157,7 +157,7 @@ final class AccountSettingsView extends GetView<AccountSettingsController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    OmText('Store connection', variant: OmTextVariant.bodyStrong),
+                    const OmText('Store connection', variant: OmTextVariant.bodyStrong),
                     const SizedBox(height: OmSpacing.xs),
                     OmText(
                       live
@@ -187,9 +187,9 @@ final class AccountSettingsView extends GetView<AccountSettingsController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  OmText('Sign out of this device', variant: OmTextVariant.bodyStrong),
+                  const OmText('Sign out of this device', variant: OmTextVariant.bodyStrong),
                   const SizedBox(height: OmSpacing.xs),
-                  OmText(
+                  const OmText(
                     'Your cart stays in this browser until you sign out; the store keeps the rest '
                     'of your data.',
                     variant: OmTextVariant.caption,

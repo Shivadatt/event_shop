@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/data/models/store_settings.dart';
-import 'package:om_events/features/storefront/common/categories_store.dart';
 
 /// Public read of the singleton `store_settings/{store}` document.
 ///

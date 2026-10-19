@@ -183,7 +183,7 @@ final class OrderMetaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          OmSectionHeader(title: 'Order details'),
+          const OmSectionHeader(title: 'Order details'),
           const SizedBox(height: OmSpacing.sm),
           for (final (label, value) in rows)
             Padding(
@@ -237,7 +237,7 @@ final class InvoicePrintActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        OmButton(
+        const OmButton(
           label: 'Print this invoice view',
           icon: Icons.print_outlined,
           variant: OmButtonVariant.secondary,

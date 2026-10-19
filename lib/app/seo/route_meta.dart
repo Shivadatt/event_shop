@@ -43,7 +43,6 @@ abstract final class OmRouteMeta {
     route: OmRoutes.search,
     kind: OmPageKind.collection,
     noIndex: true,
-    followLinks: true,
     canonicalFromPath: false,
     descriptionTemplate: 'Search results for the OM Events wholesale catalogue.',
   );
@@ -184,14 +183,12 @@ abstract final class OmRouteMeta {
     route: OmRoutes.wholesaleBulkOrder,
     kind: OmPageKind.account,
     noIndex: true,
-    followLinks: true,
   );
 
   static const PageMeta wholesaleQuotation = PageMeta(
     route: OmRoutes.wholesaleQuotation,
     kind: OmPageKind.account,
     noIndex: true,
-    followLinks: true,
   );
 
   static const PageMeta about = PageMeta(
@@ -226,7 +223,6 @@ abstract final class OmRouteMeta {
     route: OmRoutes.notFound,
     kind: OmPageKind.error,
     noIndex: true,
-    followLinks: true,
     canonicalFromPath: false,
     titleTemplate: 'Page not found | ${OmSeo.siteName}',
   );

@@ -54,21 +54,31 @@ final class DashboardController extends AdminController {
     OrderStatus.packed,
   ];
 
+  @override
+  void onInit() {
+    super.onInit();
+    loadAll();
+  }
+
   Future<void> loadAll() async {
     await guard<bool>(() async {
-      final (
-        dashboard,
-        low,
-        queuePages,
-        reviews,
-        wholesale,
-      ) = await (
-          _admin.dashboard(),
-          _admin.lowStockReport(limit: 20),
-          Future.wait(_pipeline.map((s) => _admin.listOrders(status: s, pageSize: 5))),
-          _admin.moderationQueue(status: ReviewStatus.pending),
-          _admin.wholesaleApplications(openOnly: true),
-        );
+      // Five independent reads, started together so they run in parallel and then awaited one by
+      // one. `await (futureA, futureB, …)` would unpack to a record *of futures* — Dart has no
+      // record join — which is exactly how a `Future<DashboardStats>` ended up being read as if it
+      // were the stats document.
+      final dashboardFuture = _admin.dashboard();
+      final lowFuture = _admin.lowStockReport(limit: 20);
+      final queuePagesFuture = Future.wait(
+        _pipeline.map((s) => _admin.listOrders(status: s, pageSize: 5)),
+      );
+      final reviewsFuture = _admin.moderationQueue();
+      final wholesaleFuture = _admin.wholesaleApplications();
+
+      final dashboard = await dashboardFuture;
+      final low = await lowFuture;
+      final queuePages = await queuePagesFuture;
+      final reviews = await reviewsFuture;
+      final wholesale = await wholesaleFuture;
 
       stats.value = dashboard;
       lowStock.assignAll(low);

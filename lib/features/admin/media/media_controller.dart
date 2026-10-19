@@ -53,7 +53,7 @@ final class MediaController extends AdminController with PagedAdminList<Product>
   Future<PagedResult<Product>> fetch({String? cursor}) => _admin.listProducts(
         pageSize: pageSize,
         cursor: cursor,
-        query: const CatalogQuery(status: ProductStatus.active),
+        query: const CatalogQuery(),
         // NEEDS OWNER(MediaRepository): a `listMedia({String? kind, bool missingAltOnly})` that
         // reads the `media_objects` ledger. Until it exists, category and banner assets and a
         // cross-entity "used by" roll-up cannot be shown without walking every catalogue page.

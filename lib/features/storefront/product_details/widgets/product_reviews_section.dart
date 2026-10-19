@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
@@ -40,7 +39,7 @@ final class ProductReviewsSection extends StatelessWidget {
         ),
         const SizedBox(height: OmSpacing.md),
         if (summary == null || summary.total == 0)
-          OmCard(
+          const OmCard(
             child: OmText(
               'No published reviews yet. Verified buyers can be the first to review this product '
               'after their order is delivered.',
@@ -55,7 +54,6 @@ final class ProductReviewsSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     Text(
                       summary.average.toStringAsFixed(1),
@@ -112,7 +110,7 @@ final class ProductReviewsSection extends StatelessWidget {
             ),
           if (!autoPublish) ...<Widget>[
             const SizedBox(height: OmSpacing.sm),
-            OmText(
+            const OmText(
               'New reviews are checked by the store team before they appear here.',
               variant: OmTextVariant.caption,
             ),
@@ -164,9 +162,7 @@ final class _ReviewTile extends StatelessWidget {
             const SizedBox(height: OmSpacing.xs),
             OmText(
               review.body,
-              variant: OmTextVariant.body,
               maxLines: 6,
-              overflow: TextOverflow.ellipsis,
               selectable: true,
             ),
           ],

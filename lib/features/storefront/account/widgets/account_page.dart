@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/services/session_store.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
-import 'package:om_events/app/core/widgets/om_responsive.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
@@ -62,8 +61,8 @@ final class AccountPage extends StatelessWidget {
               final profile = Get.find<SessionStore>().changes.value;
               if (profile == null) return const SizedBox.shrink();
               if (!profile.isBlocked) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: OmSpacing.md),
+              return const Padding(
+                padding: EdgeInsets.only(bottom: OmSpacing.md),
                 child: OmCard(
                   borderColor: OmColors.danger,
                   child: OmText(

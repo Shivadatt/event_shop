@@ -119,7 +119,7 @@ final class RegisterView extends GetView<RegisterController> {
                   onPressed: controller.submit,
                 ),
                 const SizedBox(height: OmSpacing.sm),
-                OmText(
+                const OmText(
                   'By continuing you accept the store\'s terms and privacy policy.',
                   variant: OmTextVariant.caption,
                   overflow: TextOverflow.visible,

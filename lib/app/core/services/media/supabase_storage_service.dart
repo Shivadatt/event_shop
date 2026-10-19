@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:om_events/app/core/env.dart';
@@ -144,7 +143,7 @@ final class SupabaseStorageService {
       final response = await auth.signInAnonymously();
       final uid = response.session?.user.id;
       if (uid == null || uid.isEmpty) {
-        throw MediaFailure(
+        throw const MediaFailure(
           'Anonymous Supabase sign-in returned no user, so an upload cannot be attributed to a '
           'storage path. Enable "Allow Anonymous Sign-Ins" in Supabase Auth, or authenticate '
           'Supabase directly for staff.',

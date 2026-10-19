@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
@@ -35,7 +37,7 @@ mixin OrderActionsMixin on GetxController {
         'Cancellation requested',
         'The store has been told to release order ${order.orderNumber}. Its status updates when '
             'they confirm.',
-        snackDuration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 5),
       );
     }
   }
@@ -52,7 +54,7 @@ mixin OrderActionsMixin on GetxController {
       Get.snackbar(
         'Return requested',
         'The store will contact you about returning ${order.orderNumber}.',
-        snackDuration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 5),
       );
     }
   }
@@ -75,7 +77,7 @@ mixin OrderActionsMixin on GetxController {
         CartLine(productId: line.productId, variantId: line.variantId, qty: line.qty),
       );
     }
-    Get.toNamed<dynamic>(OmRoutes.cart);
+    unawaited(Get.toNamed<dynamic>(OmRoutes.cart));
   }
 }
 

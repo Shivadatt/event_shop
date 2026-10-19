@@ -323,7 +323,7 @@ class _PaymentMethods extends StatelessWidget {
             ],
           ),
           const SizedBox(height: OmSpacing.sm),
-          OmText(
+          const OmText(
             'Availability and any surcharge are confirmed at checkout; the prepaid link is issued by '
             'the payment gateway, not by this app.',
             variant: OmTextVariant.caption,

@@ -21,24 +21,24 @@ void main() {
       return gridDelegate(tester).crossAxisCount;
     }
 
-    test('mobile (360) gets 2 columns', (tester) async {
+    testWidgets('mobile (360) gets 2 columns', (tester) async {
       expect(await columnsAt(tester, 360), 2);
       expectNoOverflow(tester);
     });
 
-    test('tablet (700) gets 3 columns', (tester) async {
+    testWidgets('tablet (700) gets 3 columns', (tester) async {
       expect(await columnsAt(tester, 700), 3);
     });
 
-    test('laptop (1200) gets 4 columns', (tester) async {
+    testWidgets('laptop (1200) gets 4 columns', (tester) async {
       expect(await columnsAt(tester, 1200), 4);
     });
 
-    test('desktop (1600) gets 5 columns', (tester) async {
+    testWidgets('desktop (1600) gets 5 columns', (tester) async {
       expect(await columnsAt(tester, 1600), 5);
     });
 
-    test('an explicit columns override wins over the breakpoint', (tester) async {
+    testWidgets('an explicit columns override wins over the breakpoint', (tester) async {
       await pumpOm(
         tester,
         OmProductGrid(itemCount: 6, columns: 1, itemBuilder: (c, i) => _placeholder(i)),
@@ -63,7 +63,7 @@ void main() {
       return found;
     }
 
-    test('breakpoints classify width exactly as the token thresholds', (tester) async {
+    testWidgets('breakpoints classify width exactly as the token thresholds', (tester) async {
       expect(await classAt(tester, 599), OmDeviceClass.mobile);
       expect(await classAt(tester, 600), OmDeviceClass.tablet);
       expect(await classAt(tester, 1023), OmDeviceClass.tablet);
@@ -72,7 +72,7 @@ void main() {
       expect(await classAt(tester, 1440), OmDeviceClass.desktop);
     });
 
-    test('omColumnCount tracks the device class', (tester) async {
+    testWidgets('omColumnCount tracks the device class', (tester) async {
       late int columns;
       await pumpOm(
         tester,
@@ -107,7 +107,7 @@ void main() {
                   : 'desktop';
     }
 
-    test('renders exactly one slot for the current class', (tester) async {
+    testWidgets('renders exactly one slot for the current class', (tester) async {
       for (final width in <double>[360, 700, 1200, 1600]) {
         final expected = await slotAt(tester, width);
         expect(find.text(expected), findsOneWidget, reason: 'width $width');
@@ -119,7 +119,7 @@ void main() {
   });
 
   group('OmCompactSwitch', () {
-    test('shows the compact branch on mobile/tablet and the wide branch on laptop/desktop',
+    testWidgets('shows the compact branch on mobile/tablet and the wide branch on laptop/desktop',
         (tester) async {
       await pumpOm(
         tester,
@@ -146,10 +146,10 @@ void main() {
   });
 
   group('OmResponsiveTable', () {
-    test('swaps the table for cards below minTableWidth (never forces horizontal scroll)',
+    testWidgets('swaps the table for cards below minTableWidth (never forces horizontal scroll)',
         (tester) async {
       Widget subject() => const OmResponsiveTable(
-            minTableWidth: 900,
+            // `minTableWidth` is left at its 900 default, which the 800/1200 probes below straddle.
             table: Text('table', textDirection: TextDirection.ltr),
             asCards: Text('cards', textDirection: TextDirection.ltr),
           );
@@ -165,7 +165,7 @@ void main() {
   });
 
   group('OmContentWidth', () {
-    test('caps the body so a 4K viewport shows a centred column, not 12 stretched cards',
+    testWidgets('caps the body so a 4K viewport shows a centred column, not 12 stretched cards',
         (tester) async {
       final probe = Container(key: const Key('probe'), height: 10, color: Colors.white);
       await pumpOm(
@@ -179,12 +179,13 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    test('does not stretch a child that is narrower than the cap', (tester) async {
+    testWidgets('does not stretch a child that is narrower than the cap', (tester) async {
       await pumpOm(
         tester,
-        OmContentWidth(
-          maxWidth: 1440,
-          child: const SizedBox(key: Key('fixed'), width: 300, height: 10),
+        const OmContentWidth(
+          // `maxWidth` is left at its OmSpacing.pageMaxWidth (1440) default, which is also the
+          // viewport width pumped below.
+          child: SizedBox(key: Key('fixed'), width: 300, height: 10),
         ),
         width: 1440,
         alignment: Alignment.center,
@@ -195,7 +196,7 @@ void main() {
 
   group('grid at text scale extremes (main.dart clamps 0.9-1.6)', () {
     for (final scale in <double>[0.9, 1.3, 1.6]) {
-      test('mobile product grid does not overflow at textScale $scale', (tester) async {
+      testWidgets('mobile product grid does not overflow at textScale $scale', (tester) async {
         await pumpOm(
           tester,
           OmProductGrid(

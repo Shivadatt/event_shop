@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:om_events/data/models/user_profile.dart';
 import 'package:om_events/data/models/wholesale.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/features/admin/shared/admin_controller_base.dart';

@@ -4,7 +4,6 @@ import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
-import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/review.dart';
 import 'package:om_events/features/admin/dashboard/admin_scaffold.dart';
 import 'package:om_events/features/admin/reviews/reviews_controller.dart';
@@ -128,7 +127,7 @@ class _ReviewCard extends StatelessWidget {
               dense: true,
             )
           else
-            const OmBadge(label: 'Unverified', tone: OmTone.neutral, dense: true),
+            const OmBadge(label: 'Unverified', dense: true),
           if (review.isFlagged)
             OmBadge(
               label: 'Reported ${review.reportCount}×',

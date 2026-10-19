@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
+import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/user_profile.dart';
@@ -247,7 +248,7 @@ class _CustomersViewState extends State<CustomersView> {
                         isLoading: controller.isLoading.value,
                         onLoadMore: controller.loadMore,
                         onRefresh: controller.refresh,
-                        totalEstimate: null,
+                        totalEstimate: controller.totalEstimate.value,
                       ),
                     ),
                   ],

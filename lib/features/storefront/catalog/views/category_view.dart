@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
-import 'package:om_events/features/storefront/catalog/widgets/catalog_results.dart';
 import 'package:om_events/features/storefront/catalog/catalog_controller.dart';
+import 'package:om_events/features/storefront/catalog/widgets/catalog_results.dart';
 import 'package:om_events/features/storefront/common/store_shell.dart';
 
 /// Category listing page (`/category/:slug`). The controller resolves the slug into a
@@ -41,8 +41,8 @@ final class CategoryView extends GetView<CatalogController> {
                 ),
               )
             else
-              Padding(
-                padding: const EdgeInsets.only(bottom: OmSpacing.lg),
+              const Padding(
+                padding: EdgeInsets.only(bottom: OmSpacing.lg),
                 child: OmText('Shop all products', variant: OmTextVariant.h2),
               ),
             CatalogResults(controller: controller),

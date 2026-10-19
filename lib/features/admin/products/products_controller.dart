@@ -6,7 +6,6 @@ import 'package:om_events/data/models/category.dart';
 import 'package:om_events/data/models/inventory.dart';
 import 'package:om_events/data/models/media_ref.dart';
 import 'package:om_events/data/models/product.dart';
-import 'package:om_events/data/pricing/pricing_engine.dart';
 import 'package:om_events/data/query.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/data/repositories/catalog_repository.dart';
@@ -501,7 +500,9 @@ final class ProductEditController extends AdminController {
       announce(failure.value?.message ?? 'Upload failed.', error: true);
       return;
     }
-    patch((p) => _renumber(<MediaRef>[...p.images, ...uploaded]));
+    patch((p) => _rebuild(
+          images: _renumber(<MediaRef>[...p.images, ...uploaded]),
+        ));
     announce('${uploaded.length} image(s) uploaded to the media repository.');
   }
 
@@ -513,7 +514,9 @@ final class ProductEditController extends AdminController {
       announce(failure.value?.message ?? 'Could not delete the image.', error: true);
       return;
     }
-    patch((p) => _renumber(p.images.where((i) => i.id != ref.id).toList(growable: false)));
+    patch((p) => _rebuild(
+          images: _renumber(p.images.where((i) => i.id != ref.id).toList(growable: false)),
+        ));
   }
 
   void moveImage(int from, int to) {
@@ -522,9 +525,14 @@ final class ProductEditController extends AdminController {
     if (from < 0 || to < 0 || from >= current.images.length || to >= current.images.length) {
       return;
     }
-    final next = [...current.images];
-    next.insert(to, next.removeAt(from));
-    patch((p) => _renumber(next));
+    // The reorder is applied to the closure's own product, not to the snapshot taken above, so a
+    // concurrent edit in this session cannot be overwritten by a stale list.
+    patch((p) {
+      final next = [...p.images];
+      if (from < 0 || to < 0 || from >= next.length || to >= next.length) return p;
+      next.insert(to, next.removeAt(from));
+      return _rebuild(images: _renumber(next));
+    });
   }
 
   /// Exactly one primary: the flag is derived from position, so two documents cannot both claim
@@ -532,9 +540,10 @@ final class ProductEditController extends AdminController {
   void setPrimary(int index) {
     final current = product.value;
     if (current == null || index < 0 || index >= current.images.length) return;
-    patch((p) => _renumber(<MediaRef>[
-          ...current.images,
-        ], primaryIndex: index));
+    patch((p) {
+      if (index < 0 || index >= p.images.length) return p;
+      return _rebuild(images: _renumber([...p.images], primaryIndex: index));
+    });
   }
 
   void setImageAlt(int index, String altText) {
@@ -582,10 +591,9 @@ final class ProductEditController extends AdminController {
   /// stripped here: `ProductVariant.toWriteMap({includeCost})` is the repository's decision, and a
   /// client that blanked the field for staff would silently delete a stored cost. `canSeeCostPrice`
   /// therefore only controls whether the number is shown or editable on screen.
-  Future<void> saveVariant(ProductVariant variant, {List<PriceSlab>? slabs}) async {
-    final grid = slabs ?? variant.slabs;
+  Future<void> saveVariant(ProductVariant variant) async {
     try {
-      validateSlabGrid(grid);
+      validateSlabGrid(variant.slabs);
     } on ValidationFailure catch (error) {
       slabError.value = 'Variant ${variant.name}: ${error.message}';
       announce(slabError.value!, error: true);

@@ -5,13 +5,13 @@ import 'package:om_events/data/repositories/account_repository.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/data/repositories/auth_repository.dart';
 import 'package:om_events/data/repositories/catalog_repository.dart';
-import 'package:om_events/data/repositories/order_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_account_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_admin_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_auth_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_catalog_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_order_repository.dart';
 import 'package:om_events/data/repositories/firestore/unconfigured_backend.dart';
+import 'package:om_events/data/repositories/order_repository.dart';
 
 /// Agent 3 owns this file: the single place repository *implementations* are bound. Everything else
 /// depends on the abstract types and never imports a Firestore class.

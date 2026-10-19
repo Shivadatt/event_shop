@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/session_store.dart';
@@ -64,8 +65,11 @@ final class ReviewComposeController extends GetxController {
     );
     if (loaded != null) product.value = loaded;
 
-    final mine = await safeCall<Review>(
+    // `mineFor` is nullable by contract: "no review yet" is a valid answer, not a failure, so the
+    // generic stays `Review?` and `safeCall` returns `Review?`.
+    final mine = await safeCall<Review?>(
       () => Get.find<ReviewRepository>().mineFor(productId),
+      onFailure: (f) => failure.value = f,
     );
     if (mine != null) {
       existing.value = mine;
@@ -81,7 +85,7 @@ final class ReviewComposeController extends GetxController {
 
   Future<void> _findDeliveredOrders() async {
     final page = await safeCall<PagedResult<Order>>(
-      () => Get.find<OrderRepository>().listMine(pageSize: 20),
+      () => Get.find<OrderRepository>().listMine(),
     );
     if (page == null) return;
     final matching = page.items

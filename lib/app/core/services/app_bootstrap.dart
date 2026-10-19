@@ -70,11 +70,30 @@ abstract final class AppBootstrap {
         }
         // Offline-first so a dropped connection degrades to cached reads instead of an empty
         // catalogue. The cache is per-browser and never a substitute for a refetch.
-        FirebaseFirestore.instance.settings = const Settings(
-          persistenceEnabled: true,
-          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-        );
-        FirebaseFunctions.instanceFor(region: Env.functionsRegion);
+        //
+        // Emulator mode routes through `settings` instead of `useFirestoreEmulator`, because the web
+        // SDK applies Firestore settings the moment they are assigned and the two would otherwise
+        // fight over the same object — the second call silently reverts to the production host.
+        FirebaseFirestore.instance.settings = Env.useEmulators
+            ? const Settings(
+                persistenceEnabled: true,
+                cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+                host: '${Env.emulatorHost}:${Env.firestoreEmulatorPort}',
+                sslEnabled: false,
+              )
+            : const Settings(
+                persistenceEnabled: true,
+                cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+              );
+        final functions = FirebaseFunctions.instanceFor(region: Env.functionsRegion);
+        if (Env.useEmulators) {
+          // Loopback, unencrypted, and only ever reached because the developer asked for it with
+          // --dart-define=OM_USE_EMULATORS=true. Auth must be pointed at the emulator before the
+          // first auth call, so it belongs here in initialisation rather than in a repository.
+          await FirebaseAuth.instance
+              .useAuthEmulator(Env.emulatorHost, Env.authEmulatorPort);
+          functions.useFunctionsEmulator(Env.emulatorHost, Env.functionsEmulatorPort);
+        }
         firebaseReady = true;
       } catch (error, stack) {
         failure = 'Firebase initialisation failed: ${_describe(error)}';

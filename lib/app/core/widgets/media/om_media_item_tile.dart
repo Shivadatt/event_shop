@@ -189,7 +189,6 @@ final class _Preview extends StatelessWidget {
               bytes,
               fit: BoxFit.cover,
               gaplessPlayback: true,
-              isComplex: false,
               filterQuality: FilterQuality.low,
               semanticLabel: item.altText.isEmpty ? item.fileName : item.altText,
               errorBuilder: (context, error, stack) =>

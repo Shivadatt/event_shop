@@ -59,11 +59,9 @@ class CatalogController extends GetxController with WishlistToggleMixin {
     if (slug != null && slug.isNotEmpty) {
       return CatalogQuery(
         categorySlug: slug,
-        sort: SortMode.relevance,
-        wholesaleOnly: null,
       );
     }
-    return const CatalogQuery(sort: SortMode.relevance);
+    return const CatalogQuery();
   }
 
   Future<void> bootstrap() async {
@@ -74,12 +72,15 @@ class CatalogController extends GetxController with WishlistToggleMixin {
       );
       category.value = resolved;
     } else {
-      Get.find<CategoriesStore>().ensureLoaded();
+      // Warm the category cache while the first page loads; `ensureLoaded` is a background
+      // prefetch and the product list does not depend on it.
+      unawaited(Get.find<CategoriesStore>().ensureLoaded());
     }
     await refresh();
   }
 
   /// Re-runs the current query from page one.
+  @override
   Future<void> refresh() async {
     loadingFirst.value = true;
     failure.value = null;

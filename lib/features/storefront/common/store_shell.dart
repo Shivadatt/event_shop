@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/services/session_store.dart';
+import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_responsive.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
@@ -114,7 +115,6 @@ class StoreAppBar extends StatelessWidget implements PreferredSizeWidget {
                 label: 'Search products',
                 hint: 'Search products…',
                 prefixIcon: Icons.search,
-                maxLines: 1,
                 onSubmitted: (value) {
                   final query = value.trim();
                   Get.toNamed<dynamic>(
@@ -169,8 +169,11 @@ class StoreAppBar extends StatelessWidget implements PreferredSizeWidget {
 class StoreDrawer extends StatelessWidget {
   const StoreDrawer({super.key});
 
-  void _go(String route) {
-    Get.closeOpenDrawer();
+  /// GetX has no `closeOpenDrawer`; the Scaffold owns the drawer, so it is closed through
+  /// [ScaffoldState.closeDrawer] before the route is pushed. Without this the drawer stays painted
+  /// over the new page on wide layouts where it is pinned open.
+  void _go(BuildContext context, String route) {
+    Scaffold.maybeOf(context)?.closeDrawer();
     Get.toNamed<dynamic>(route);
   }
 
@@ -189,7 +192,7 @@ class StoreDrawer extends StatelessWidget {
           OmRoutes.wholesaleApply,
           OmRoutes.contact,
         ];
-        if (index < routes.length) _go(routes[index]);
+        if (index < routes.length) _go(context, routes[index]);
       },
       children: <Widget>[
         Padding(
@@ -243,7 +246,7 @@ class StoreDrawer extends StatelessWidget {
                   ListTile(
                     dense: true,
                     title: Text(category.name),
-                    onTap: () => _go(OmRoutes.forCategory(category.pathSlug)),
+                    onTap: () => _go(context, OmRoutes.forCategory(category.pathSlug)),
                   ),
               ],
             );
@@ -275,7 +278,7 @@ class StoreFooter extends StatelessWidget {
               spacing: OmSpacing.xl,
               runSpacing: OmSpacing.lg,
               children: <Widget>[
-                _FooterColumn(
+                const _FooterColumn(
                   title: 'Shop',
                   links: <(String, String)>[
                     ('Search', OmRoutes.search),
@@ -284,7 +287,7 @@ class StoreFooter extends StatelessWidget {
                     ('My account', OmRoutes.account),
                   ],
                 ),
-                _FooterColumn(
+                const _FooterColumn(
                   title: 'Help',
                   links: <(String, String)>[
                     ('FAQ', OmRoutes.faq),

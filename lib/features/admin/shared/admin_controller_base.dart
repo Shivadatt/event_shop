@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/session_store.dart';
+import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/data/query.dart';
 
 /// Shared scaffolding for admin controllers: load state, in-flight guards and one failure sink.
@@ -64,27 +65,36 @@ abstract class AdminController extends GetxController {
       guard<T>(body, asSubmitting: true);
 
   /// Mutation entry point for repository methods that return void.
+  ///
+  /// `guard` answers `null` when the write failed, so the await has to happen before the fallback:
+  /// `guard<bool>(...) ?? false` would test the *Future object* for null, which is never null, and
+  /// hand callers an `Object` instead of a bool.
   @protected
-  Future<bool> mutateVoid(Future<void> Function() body) =>
-      guard<bool>(
-        () async {
-          await body();
-          return true;
-        },
-        asSubmitting: true,
-      ) ??
-      false;
+  Future<bool> mutateVoid(Future<void> Function() body) async {
+    final result = await guard<bool>(
+      () async {
+        await body();
+        return true;
+      },
+      asSubmitting: true,
+    );
+    return result ?? false;
+  }
 
   @protected
   void clearFailure() => failure.value = null;
 
+  /// One voice for every admin confirmation and refusal.
   @protected
   void announce(String message, {bool error = false}) {
     Get.snackbar(
       error ? 'Action failed' : 'Done',
       message,
       maxWidth: 420,
-      insetPadding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: OmSpacing.md, vertical: OmSpacing.lg),
+      borderRadius: OmRadius.md,
+      leftBarIndicatorColor: error ? OmColors.danger : OmColors.gold,
+      snackPosition: SnackPosition.BOTTOM,
     );
   }
 }
@@ -96,6 +106,11 @@ mixin PagedAdminList<T> on AdminController {
   final RxList<T> rows = <T>[].obs;
   final RxnString nextCursor = RxnString();
 
+  /// The server's own estimate of how many rows match, when the page carries one. Null means the
+  /// backend did not answer that question, and [OmAdminPager] then says "N rows loaded" instead of
+  /// inventing a total from the page length.
+  final RxnInt totalEstimate = RxnInt();
+
   bool get hasMore => nextCursor.value != null;
   bool get hasRows => rows.isNotEmpty;
   bool get isPageEmpty => hasLoaded.value && rows.isEmpty && failure.value == null;
@@ -105,10 +120,11 @@ mixin PagedAdminList<T> on AdminController {
   /// Reloads page one and discards any pages already appended. Called after every mutation and
   /// after every filter change, so a stale second page cannot survive a server-side edit.
   Future<void> loadFirstPage() async {
-    final page = await guard<PagedResult<T>>(() => fetch(cursor: null));
+    final page = await guard<PagedResult<T>>(fetch);
     if (page == null) return;
     rows.assignAll(page.items);
     nextCursor.value = page.nextCursor;
+    totalEstimate.value = page.totalEstimate;
   }
 
   /// Appends, so an operator scrolling a long order list keeps their place.
@@ -121,10 +137,14 @@ mixin PagedAdminList<T> on AdminController {
     nextCursor.value = page.nextCursor;
   }
 
+  /// GetX declares `refresh()` as a void notification hook; here it re-reads page one so a list
+  /// bound to a `RefreshIndicator` or an explicit reload button gets server-truth rows.
+  @override
   Future<void> refresh() => loadFirstPage();
 
   void clearRows() {
     rows.clear();
     nextCursor.value = null;
+    totalEstimate.value = null;
   }
 }

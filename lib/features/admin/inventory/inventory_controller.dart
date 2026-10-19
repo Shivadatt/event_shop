@@ -6,6 +6,7 @@ import 'package:om_events/data/query.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/features/admin/shared/admin_controller_base.dart';
 import 'package:om_events/features/admin/shared/admin_csv.dart';
+import 'package:om_events/features/admin/widgets/admin_badges.dart';
 
 /// How the stock table is being sourced. Both branches are server reads; the difference is only
 /// which privileged query the repository runs.
@@ -66,7 +67,6 @@ final class InventoryController extends AdminController with PagedAdminList<Prod
           categoryId: categoryIdFilter.value,
           includeSubCategories: false,
           inStockOnly: scope.value == StockScope.inStock,
-          status: ProductStatus.active,
           pageSize: pageSize,
           cursor: cursor,
         ),
@@ -79,7 +79,7 @@ final class InventoryController extends AdminController with PagedAdminList<Prod
   /// lives in one place instead of being re-derived from whatever page happens to be loaded.
   Future<void> loadLowReport() async {
     lowReportFailed.value = false;
-    final report = await guard<List<Product>>(() => _admin.lowStockReport(limit: 100));
+    final report = await guard<List<Product>>(_admin.lowStockReport);
     if (report != null) lowReport.assignAll(report);
   }
 
@@ -365,9 +365,13 @@ final class StockLedgerController extends AdminController {
   /// The store-wide ledger needs a repository query that does not exist yet.
   ///
   /// NEEDS OWNER(AdminRepository):
-  ///   Future<PagedResult<InventoryMovement>> movements({
-  ///     String? productId, StockMovementKind? kind,
-  ///     DateTime? from, DateTime? to, int pageSize, String? cursor})
+  ///
+  /// ```dart
+  /// Future<PagedResult<InventoryMovement>> movements({
+  ///   String? productId, StockMovementKind? kind,
+  ///   DateTime? from, DateTime? to, int pageSize, String? cursor})
+  /// ```
+  ///
   /// `movementsFor` is per-product only; filtering a returned page client-side would hide rows the
   /// operator needs, so until that method lands the cross-product view is honestly unavailable
   /// rather than silently partial.

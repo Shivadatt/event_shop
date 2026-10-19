@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+// Flutter 3.44 exports its own `SearchController` (search_anchor) through material.dart, so the
+// GetX controller of the same name must win the import here.
+import 'package:flutter/material.dart' hide SearchController;
 import 'package:get/get.dart';
 import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
@@ -54,7 +56,7 @@ class _SearchFilterPanelState extends State<SearchFilterPanel> {
   }
 
   void _commitPriceBand() {
-    widget.controller.setPriceBand(
+    widget.controller.setPriceBandPaise(
       minPaise: _paiseFrom(_min),
       maxPaise: _paiseFrom(_max),
     );
@@ -72,7 +74,7 @@ class _SearchFilterPanelState extends State<SearchFilterPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          OmText('Refine results', variant: OmTextVariant.h3),
+          const OmText('Refine results', variant: OmTextVariant.h3),
           const SizedBox(height: OmSpacing.md),
           OmDropdown<SortMode>(
             label: 'Sort by',
@@ -129,7 +131,7 @@ class _SearchFilterPanelState extends State<SearchFilterPanel> {
           if (query.minPricePaise != null || query.maxPricePaise != null)
             OmText('Applied: ${_rangeLabel(query)}', variant: OmTextVariant.caption)
           else
-            OmText(
+            const OmText(
               'Leave both blank to search every price.',
               variant: OmTextVariant.caption,
             ),

@@ -20,9 +20,10 @@ import 'package:om_events/features/admin/shared/admin_widgets.dart';
 ///
 /// Variants are separate documents written through `AdminRepository.saveVariant`, so a variant is
 /// never smuggled into the product write. Each row owns its slab grid, because a customer's band
-/// belongs to the thing they actually ordered. Cost price is only *displayed* for roles that may
-/// see it; stripping it client-side would let a staff save wipe a stored cost, so the field is
-/// round-tripped and the server decides what it persists.
+/// belongs to the thing they actually ordered. Cost price is only *shown and editable* to roles that
+/// may see it: for every other role the key is left out of the write, so the server's `merge: true`
+/// keeps the stored cost. It is never echoed as 0, which would blank a real cost and break margin
+/// reporting. The role check that matters is the one inside the callable.
 final class OmProductVariantsEditor extends StatefulWidget {
   const OmProductVariantsEditor({super.key, required this.controller, required this.product});
 
@@ -55,12 +56,11 @@ class _OmProductVariantsEditorState extends State<OmProductVariantsEditor> {
             children: <Widget>[
               if (!canEdit)
                 const OmAdminNotice(
-                  tone: OmTone.info,
                   icon: Icons.info_outline,
                   message: 'Save the product first: a variant row must belong to a product id.',
                 ),
               if (rows.isEmpty && !_adding)
-                OmCard(
+                const OmCard(
                   child: OmEmptyState(
                     compact: true,
                     icon: Icons.category_outlined,
@@ -140,7 +140,6 @@ class _VariantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final styles = context.omText;
     return OmCard(
-      padding: const EdgeInsets.all(OmSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -169,7 +168,7 @@ class _VariantCard extends StatelessWidget {
                 ),
               ),
               if (!variant.isActive)
-                const OmBadge(tone: OmTone.neutral, dense: true, label: 'Hidden'),
+                const OmBadge(dense: true, label: 'Hidden'),
               const SizedBox(width: OmSpacing.sm),
               OmButton(
                 label: expanded ? 'Close' : 'Edit',
@@ -245,6 +244,22 @@ class _VariantFormState extends State<_VariantForm> {
 
   static TextEditingController _t(String value) => TextEditingController(text: value);
 
+  /// Reads the cost field without ever turning an unreadable value into `0`.
+  ///
+  /// `OmMoney.parseRupeeString` returns 0 for anything it cannot parse, and `adminVariantSave`
+  /// writes with `merge: true` — so a `costPricePaise: 0` in the payload silently zeroes a real
+  /// stored cost and corrupts every margin report built from it. A blank field, a negative value
+  /// or text that is not a number therefore means "leave the stored cost alone", which is expressed
+  /// as `null` so `ProductVariant.toWriteMap` + `compact()` omit the key entirely. Only a genuine
+  /// typed `0` is treated as a deliberate zero cost.
+  static int? _readCost(String text, int? stored) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return stored;
+    final numeric = double.tryParse(trimmed.replaceAll(RegExp(r'[,\s]'), ''));
+    if (numeric == null || numeric < 0) return stored;
+    return OmMoney.parseRupeeString(trimmed);
+  }
+
   @override
   void dispose() {
     for (final c in <TextEditingController>[
@@ -275,9 +290,14 @@ class _VariantFormState extends State<_VariantForm> {
         // Read-only echo of the ledger balance. Saving a variant is not the path that changes
         // stock, so this can never move a number on its own.
         stockQty: widget.existing?.stockQty ?? 0,
+        // When the role may not see cost, the key is left out of the write entirely: `null` is
+        // stripped by `compact()` inside `ProductVariant.toWriteMap`, and `adminVariantSave` writes
+        // with `merge: true`, so the stored cost survives untouched. Echoing the number back from a
+        // hidden input would put a privileged value on the wire from a widget that is not allowed
+        // to know it — and a mis-parsed echo would land on the doc as 0.
         costPricePaise: widget.controller.canSeeCost
-            ? (_cost.text.trim().isEmpty ? widget.existing?.costPricePaise : OmMoney.parseRupeeString(_cost.text))
-            : widget.existing?.costPricePaise,
+            ? _readCost(_cost.text, widget.existing?.costPricePaise)
+            : null,
         minOrderQty: int.tryParse(_minQty.text.trim()) ?? 1,
         imageUrl: widget.existing?.imageUrl ?? '',
         isActive: _isActive,
@@ -307,7 +327,7 @@ class _VariantFormState extends State<_VariantForm> {
       return;
     }
     setState(() => _slabError = null);
-    await widget.controller.saveVariant(variant, slabs: _slabs);
+    await widget.controller.saveVariant(variant);
     if (!mounted) return;
     final error = widget.controller.failure.value;
     if (error != null) {
@@ -369,7 +389,7 @@ class _VariantFormState extends State<_VariantForm> {
               controller: _price,
               required: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              validator: (value) => OmValidators.price(value),
+              validator: OmValidators.price,
               onChanged: (_) => setState(() {}),
             ),
             OmNumberField(
@@ -377,7 +397,7 @@ class _VariantFormState extends State<_VariantForm> {
               controller: _minQty,
               min: 1,
               required: true,
-              validator: (value) => OmValidators.wholeQuantity(value, minimum: 1),
+              validator: OmValidators.wholeQuantity,
               onChanged: (_) {},
             ),
             if (canSeeCost)
@@ -385,7 +405,8 @@ class _VariantFormState extends State<_VariantForm> {
                 label: 'Cost price (rupees)',
                 controller: _cost,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                helper: 'Admin and owner only. Blank leaves the stored cost untouched.',
+                helper: 'Admin and owner only. Blank leaves the stored cost untouched; typing 0 '
+                    'sets it to zero on purpose.',
                 onChanged: (_) {},
               ),
             OmSwitchRow(
@@ -400,11 +421,11 @@ class _VariantFormState extends State<_VariantForm> {
           const Padding(
             padding: EdgeInsets.only(bottom: OmSpacing.md),
             child: OmAdminNotice(
-              tone: OmTone.info,
               icon: Icons.lock_outline,
-              message: 'Cost price is not shown to your role. The number is still carried with the '
-                  'row on save, so an edit here cannot blank it, and the server re-checks the role '
-                  'on the write.',
+              message: 'Cost price is not shown to your role, and your save leaves it out of the '
+                  'write altogether — the server merges, so the stored cost is kept exactly as it '
+                  'is and cannot be blanked from here. The write function re-checks your role; this '
+                  'notice only explains what the form sends.',
             ),
           ),
         const SizedBox(height: OmSpacing.md),
@@ -428,13 +449,12 @@ class _VariantFormState extends State<_VariantForm> {
           children: <Widget>[
             OmButton(
               label: widget.existing == null ? 'Create variant' : 'Save variant',
-              variant: OmButtonVariant.primary,
               onPressed: widget.product.id.isEmpty ? null : _save,
             ),
             OmButton(
               label: 'Cancel',
               variant: OmButtonVariant.ghost,
-              onPressed: widget.existing == null ? widget.onCancel : widget.onClose,
+              onPressed: widget.onCancel,
             ),
             if (widget.existing != null)
               OmButton(

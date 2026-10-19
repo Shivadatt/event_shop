@@ -55,6 +55,9 @@ functions/.env
 functions/.env.*
 !functions/.env.example
 
+# Scratch: per-owner analyzer worklists and analyze dumps regenerated every repair round
+/build_logs/
+
 # Generated
 firebase-debug.log
 firestore-debug.log

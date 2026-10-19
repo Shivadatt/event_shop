@@ -107,7 +107,7 @@ class _PastePanel extends StatelessWidget {
               );
             }),
             const SizedBox(height: OmSpacing.md),
-            OmText(
+            const OmText(
               'Availability is advisory here: the server re-checks stock and every price when the '
               'order is created, so a resolved line is an intent, not a reservation.',
               variant: OmTextVariant.caption,
@@ -209,7 +209,7 @@ class _Results extends StatelessWidget {
           expanded: context.isCompactLayout,
           onPressed: controller.addValidLinesToCart,
         ),
-        OmText(
+        const OmText(
           'Cart totals, freight and the payable amount are computed at checkout by the server.',
           variant: OmTextVariant.caption,
         ),
@@ -265,7 +265,7 @@ class _ResolvedTable extends StatelessWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: OmSpacing.sm),
-                      child: OmText('${row.qty}', variant: OmTextVariant.body),
+                      child: OmText('${row.qty}'),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: OmSpacing.sm),

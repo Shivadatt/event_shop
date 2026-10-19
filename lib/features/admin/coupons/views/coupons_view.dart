@@ -41,9 +41,9 @@ final class CouponsView extends StatelessWidget {
               onPressed: () => Get.find<CouponsController>().load(),
             ),
           ],
-          child: Column(
+          child: const Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const <Widget>[
+            children: <Widget>[
               _Editor(),
               _List(),
             ],
@@ -93,7 +93,6 @@ class _List extends StatelessWidget {
                     final c = controller.coupons[index];
                     return OmText(
                       '${c.usedCount}${c.usageLimit == null ? '' : '/${c.usageLimit}'}',
-                      variant: OmTextVariant.body,
                     );
                   },
                 ),
@@ -217,8 +216,7 @@ class _Editor extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: OmSpacing.md),
-              OmAdminNotice(
-                tone: OmTone.info,
+              const OmAdminNotice(
                 message: 'Values are stored as integer paise and an integer percent. The '
                     'percentage cap and window are re-checked by the server on save.',
               ),

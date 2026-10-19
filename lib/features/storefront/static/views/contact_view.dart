@@ -53,13 +53,13 @@ class _WhatsAppCard extends StatelessWidget {
       message: 'Hi ${settings.shopName}, I would like to ask about wholesale supply.',
     );
     if (link.isEmpty) {
-      return OmCard(
+      return const OmCard(
         borderColor: OmColors.warning,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const OmSectionHeader(title: 'WhatsApp'),
-            const SizedBox(height: OmSpacing.sm),
+            OmSectionHeader(title: 'WhatsApp'),
+            SizedBox(height: OmSpacing.sm),
             OmText(
               'The store has not published a WhatsApp number in its settings yet, so click-to-chat '
               'is unavailable. Phone, email and the support desk below still work.',
@@ -147,7 +147,7 @@ class _ChannelsCard extends StatelessWidget {
                         OmExternalLink.open(context, entry.value, label: entry.key),
                   ),
             if (settings.phone.isEmpty && settings.email.isEmpty)
-              OmText(
+              const OmText(
                 'No phone or email is published yet either — the support desk in your account is '
                 'the only written channel until the store fills in its settings.',
                 variant: OmTextVariant.caption,
@@ -228,7 +228,6 @@ class _AddressCard extends StatelessWidget {
           const SizedBox(height: OmSpacing.sm),
           OmText(
             address.isEmpty ? 'The shop address is not published in store settings yet.' : address,
-            variant: OmTextVariant.body,
             overflow: TextOverflow.visible,
           ),
           const SizedBox(height: OmSpacing.md),

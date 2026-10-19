@@ -125,15 +125,20 @@ final class OmButton extends StatelessWidget {
       child: Material(
         color: bg,
         borderRadius: OmRadius.smAll,
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          borderRadius: OmRadius.smAll,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: size == OmButtonSize.small ? OmSpacing.md : OmSpacing.lg,
-              vertical: OmSpacing.sm,
+        // InkWell hands the node a tap action but never the button role, so the storefront's
+        // primary CTA used to be announced as plain text. OmIconButton below sets the same flag.
+        child: Semantics(
+          button: true,
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            borderRadius: OmRadius.smAll,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: size == OmButtonSize.small ? OmSpacing.md : OmSpacing.lg,
+                vertical: OmSpacing.sm,
+              ),
+              child: Center(child: child),
             ),
-            child: Center(child: child),
           ),
         ),
       ),

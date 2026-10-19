@@ -125,13 +125,36 @@ class _PricingViewState extends State<PricingView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            if (controller.overridesListUnavailable.value)
-              const OmAdminNotice(
-                message: 'Existing overrides cannot be listed yet: AdminRepository has no customer-price '
-                    'listing method (see PricingController.loadOverrides). Add and delete-by-id work; '
-                    'the panel below only reflects what you add in this session.',
-                tone: OmTone.info,
-              ),
+            Obx(() {
+              if (!controller.overridesListUnavailable.value) {
+                return const SizedBox.shrink();
+              }
+              // Read inside Obx so the warning disappears the moment the list does load — the
+              // section must not keep showing a stale "cannot be listed" banner.
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const OmAdminNotice(
+                    message: 'Stored negotiated prices could not be listed, so no rows are shown. '
+                        'A save still works, but the document id is minted by the server and only '
+                        'comes back through this list, so a row cannot be edited or deleted until '
+                        'the read succeeds — use Reload. No number you see here is a price the '
+                        'engine has applied.',
+                  ),
+                  const SizedBox(height: OmSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OmButton(
+                      label: 'Reload override list',
+                      variant: OmButtonVariant.ghost,
+                      size: OmButtonSize.small,
+                      icon: Icons.refresh,
+                      onPressed: controller.reloadOverrides,
+                    ),
+                  ),
+                ],
+              );
+            }),
             const SizedBox(height: OmSpacing.md),
             OmAdminFormGrid(
               children: <Widget>[
@@ -175,7 +198,7 @@ class _PricingViewState extends State<PricingView> {
             Obx(() {
               if (controller.overrides.isEmpty) {
                 return const OmAdminNotice(
-                  message: 'No overrides added in this session.',
+                  message: 'No stored overrides came back from the server for this scope.',
                   tone: OmTone.neutral,
                 );
               }
@@ -183,7 +206,7 @@ class _PricingViewState extends State<PricingView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   for (final o in controller.overrides)
-                    _OverrideRow(controller: controller, override: o),
+                    _OverrideRow(controller: controller, entry: o),
                 ],
               );
             }),
@@ -193,29 +216,32 @@ class _PricingViewState extends State<PricingView> {
 }
 
 class _OverrideRow extends StatelessWidget {
-  const _OverrideRow({required this.controller, required this.override});
+  const _OverrideRow({required this.controller, required this.entry});
 
   final PricingController controller;
-  final CustomerPriceOverride override;
+
+  /// Named `entry`, not `override`: a member called `override` shadows `dart:core`'s `override`
+  /// constant, which then breaks the `@override` annotation in this same class.
+  final CustomerPriceOverride entry;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: OmSpacing.sm),
         child: OmAdminRowCard(
-          title: '${override.uid} → ${override.productId}',
+          title: '${entry.uid} → ${entry.productId}',
           badges: <Widget>[
             OmBadge(
-              label: override.isAlive() ? 'Active' : 'Expired',
-              tone: override.isAlive() ? OmTone.success : OmTone.neutral,
+              label: entry.isAlive() ? 'Active' : 'Expired',
+              tone: entry.isAlive() ? OmTone.success : OmTone.neutral,
               dense: true,
             ),
           ],
           lines: <String>[
-            'Unit price ${OmMoney.format(override.unitPricePaise)}',
-            if (override.variantId != null) 'Variant ${override.variantId}',
-            if (override.note.isNotEmpty) override.note,
-            if (override.expiresAt != null) 'Expires ${AdminFormat.date(override.expiresAt)}',
-            'id: ${override.id}',
+            'Unit price ${OmMoney.format(entry.unitPricePaise)}',
+            if (entry.variantId != null) 'Variant ${entry.variantId}',
+            if (entry.note.isNotEmpty) entry.note,
+            if (entry.expiresAt != null) 'Expires ${AdminFormat.date(entry.expiresAt)}',
+            'id: ${entry.id}',
           ],
           actions: <Widget>[
             OmButton(
@@ -234,6 +260,6 @@ class _OverrideRow extends StatelessWidget {
       title: 'Remove this customer override?',
       message: 'The backend stops applying this negotiated price. This is audited.',
     );
-    if (confirmed) await controller.deleteOverride(override.id);
+    if (confirmed) await controller.deleteOverride(entry.id);
   }
 }

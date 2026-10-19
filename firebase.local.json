@@ -1,0 +1,21 @@
+{
+  "//": "LOCAL DEMO ONLY — never deploy this file. It deliberately has NO firestore.rules key, so the emulator starts with its permissive default and scripts/local/seed_local_store.mjs can write documents without a service account. The strict rules that actually protect a real project live in firestore.rules, which the committed firebase.json points at; this file exists only to keep the demo config out of the deploy path.",
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20",
+      "ignore": ["node_modules", ".git", "*.local"]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "functions": { "port": 5001 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
+  }
+}

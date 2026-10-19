@@ -19,7 +19,6 @@ import 'package:om_events/features/storefront/common/safe_call.dart';
 /// Authority: filtering is expressed as a `CatalogQuery` and executed by `ProductRepository`; the
 /// prices the grid shows come from `PricingEngine` per card, never from this controller.
 final class SearchController extends CatalogController {
-  static const int _suggestionLimit = 8;
   static const Duration _debounce = Duration(milliseconds: 320);
 
   final RxString term = ''.obs;
@@ -36,8 +35,6 @@ final class SearchController extends CatalogController {
     term.value = incoming;
     return CatalogQuery(
       search: incoming,
-      sort: SortMode.relevance,
-      wholesaleOnly: null,
     );
   }
 
@@ -63,7 +60,7 @@ final class SearchController extends CatalogController {
 
   Future<void> _fetchSuggestions(String trimmed) async {
     final result = await safeCall<List<String>>(
-      () => Get.find<ProductRepository>().suggestions(trimmed, limit: _suggestionLimit),
+      () => Get.find<ProductRepository>().suggestions(trimmed),
       onFailure: (f) {
         suggestionFailure.value = f;
         suggestionsLoading.value = false;
@@ -148,15 +145,20 @@ final class SearchController extends CatalogController {
     _apply(tags: tags.toList(growable: false));
   }
 
-  /// Blank bounds clear themselves; a bound below one rupee is treated as "no bound" rather than
-  /// a zero-price filter that would match nothing.
-  void setPriceBand({int? minPaise, int? maxPaise}) => _apply(
+  /// Price band in integer paise, the unit `CatalogQuery` stores.
+  ///
+  /// Named apart from `CatalogController.setPriceBand` on purpose: the base setter takes whole
+  /// rupees and multiplies by 100, so a same-named override with paise parameters would be an
+  /// invalid (and silently money-losing) override. The filter panel already converts the buyer's
+  /// rupee input to paise and calls this.
+  void setPriceBandPaise({int? minPaise, int? maxPaise}) => _apply(
         minPricePaise: minPaise,
         maxPricePaise: maxPaise,
         clearMinPrice: minPaise == null,
         clearMaxPrice: maxPaise == null,
       );
 
+  @override
   void setInStockOnly(bool on) => _apply(inStockOnly: on);
 
   void setFeaturedOnly(bool on) => _apply(featuredOnly: on);

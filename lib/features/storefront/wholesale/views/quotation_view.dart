@@ -174,7 +174,7 @@ class _QuotationForm extends StatelessWidget {
                   children: <Widget>[
                     OmButton(
                       label: 'Send the request',
-                      icon: Icons.local_postoffice_outlined,
+                      icon: Icons.local_post_office_outlined,
                       loading: busy,
                       busyLabel: 'Sending…',
                       onPressed: controller.submit,
@@ -201,7 +201,7 @@ class _QuotationForm extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: OmSpacing.md),
-                OmText(
+                const OmText(
                   'Prices, stock and freight in a quotation are the store\'s to confirm, and they '
                   'hold only for the window the desk states in its reply.',
                   variant: OmTextVariant.caption,
@@ -280,7 +280,7 @@ class _HistorySection extends StatelessWidget {
           compact: true,
           title: 'No quotation requests yet',
           message: 'Requests you send are listed here with the ticket the store replies to.',
-          icon: Icons.local_postoffice_outlined,
+          icon: Icons.local_post_office_outlined,
         );
       }
       return Column(

@@ -87,7 +87,7 @@ final class CartView extends GetView<CartController> {
             Padding(
               padding: const EdgeInsets.only(bottom: OmSpacing.md),
               child: _Advisory(
-                icon: Icons.minimum_outlined,
+                icon: Icons.minimize,
                 text: 'This store ships from ${OmMoney.format(settings.minOrderValuePaise)}. '
                     'You are at ${OmMoney.format(totals.subtotalPaise)} right now — checkout '
                     'will tell you if that is still not enough.',
@@ -229,7 +229,7 @@ class _TrustNotes extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          OmText('What happens next', variant: OmTextVariant.bodyStrong),
+          const OmText('What happens next', variant: OmTextVariant.bodyStrong),
           const SizedBox(height: OmSpacing.sm),
           OmText(
             '· Checkout re-prices every line on our servers; nothing here is a confirmed charge.\n'

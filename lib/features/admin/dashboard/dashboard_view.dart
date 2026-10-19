@@ -8,7 +8,6 @@ import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
-import 'package:om_events/data/models/product.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
 import 'package:om_events/features/admin/dashboard/admin_scaffold.dart';
 import 'package:om_events/features/admin/dashboard/dashboard_controller.dart';
@@ -216,7 +215,7 @@ class _SparklineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          OmText('SALES TREND', variant: OmTextVariant.label),
+          const OmText('SALES TREND', variant: OmTextVariant.label),
           const SizedBox(height: OmSpacing.md),
           SizedBox(
             height: 76,

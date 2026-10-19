@@ -66,9 +66,10 @@ final class OrdersController extends AdminController with PagedAdminList<Order> 
         to: toBound,
         pageSize: pageSize,
         cursor: cursor,
-        // NEEDS OWNER(AdminRepository): `DeliveryMode? deliveryMode` and `String? customerId` on
-        // `listOrders`. A delivery-mode or single-customer queue cannot be filtered client-side
-        // without paging the whole order collection, which the panel must not do.
+        // AGREED with the backend owner (r2 convergence list): optional `DeliveryMode? deliveryMode`
+        // and `String? customerId` on `listOrders`. A delivery-mode or single-customer queue cannot
+        // be filtered client-side without paging the whole order collection, which the panel must
+        // not do.
         deliveryMode: deliveryFilter.value,
         customerId: customerId.value,
       );
@@ -175,7 +176,7 @@ final class OrderDetailController extends AdminController {
 
   final Rxn<Order> order = Rxn<Order>();
   final RxnString invoiceUrl = RxnString();
-  final RxList<String> issues = <String>[].obs();
+  final RxList<String> issues = <String>[].obs;
 
   Order? get value => order.value;
 

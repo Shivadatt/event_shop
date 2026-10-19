@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -19,6 +19,7 @@ import 'package:om_events/data/models/media_ref.dart';
 import 'package:om_events/data/models/product.dart';
 import 'package:om_events/data/om_doc.dart';
 import 'package:om_events/data/providers/firestore_collections.dart';
+import 'package:om_events/data/query.dart';
 import 'package:om_events/data/repositories/media_repository.dart';
 
 /// The admin-facing half of the media repository: the same pipeline, but watchable.
@@ -286,7 +287,7 @@ final class SupabaseMediaRepository
   /// object legitimately sits in two holder documents while the ledger keeps a single row: the
   /// `holders` list is what stops the first gallery from deleting the other one's bytes.
   Future<_ReleaseReport> _release(List<MediaRef> refs, {String? fromHolder}) async {
-    if (refs.isEmpty) return _ReleaseReport(deleted: const <String>[], skipped: const <String>[]);
+    if (refs.isEmpty) return const _ReleaseReport(deleted: <String>[], skipped: <String>[]);
     final deletable = <MediaRef>[];
     final skipped = <String>[];
     final rowIds = <String>{};
@@ -461,7 +462,15 @@ final class SupabaseMediaRepository
     for (final path in paths) {
       service.invalidateSigned(path);
     }
-    final ids = paths.map(paths.mediaIdFromPath).where((id) => id.isNotEmpty).toList();
+    // `paths` is this method's argument, which shadows the [MediaPathPolicy] field, so the policy is
+    // bound to a local before it is used: an object key is `{order}-{mediaId}.{ext}`, and the mediaId
+    // it carries is the `media_objects` row id. Only paths the scan reported (and that are still
+    // unreferenced) can get here, so a hand-built list can never delete a ledger row.
+    final policy = this.paths;
+    final ids = paths
+        .map(policy.mediaIdFromPath)
+        .where((String id) => id.isNotEmpty)
+        .toList(growable: false);
     if (ids.isNotEmpty && ledger.isAvailable) {
       await ledger.remove(ids);
     }
@@ -486,8 +495,8 @@ final class SupabaseMediaRepository
   /// reads per collection and reports `complete: false`, which disables deletion.
   Future<_Sweep> _sweepDocuments() async {
     if (!Env.hasFirebase) {
-      return _Sweep(
-        paths: const <String>{},
+      return const _Sweep(
+        paths: <String>{},
         complete: false,
         note: 'Firestore is not configured, so document references could not be checked.',
       );
@@ -547,6 +556,138 @@ final class SupabaseMediaRepository
         .where((path) => path.isNotEmpty);
   }
 
+  // ---------------------------------------------------------------- library listing
+
+  /// Reads the `media_objects` ledger, paged by document id, and applies the admin's filters in
+  /// Dart.
+  ///
+  /// Two deliberate choices. Filtering happens client-side after each document-id-ordered batch
+  /// because a `kind`/`state` equality combined with an ordering that is not on that field is what
+  /// makes Firestore demand a composite index nobody declared — `referencedPaths` already works this
+  /// way for the same reason. And the read budget is the ledger's own ceiling: when it stops with
+  /// rows probably unread, the page still reports a cursor, because a media library that silently
+  /// looks complete is how an admin concludes an image is gone.
+  @override
+  Future<PagedResult<MediaObjectRecord>> listMedia({
+    String? kind,
+    MediaObjectState? state,
+    bool missingAltOnly = false,
+    int pageSize = 24,
+    String? cursor,
+  }) async {
+    _requireConfigured('list the media library');
+    final kindFilter = _mediaKindFilter(kind);
+    final limit = _pageSize(pageSize);
+    if (!ledger.isAvailable) {
+      throw MediaFailure('Cannot list media — ${ledger.unavailableReason}');
+    }
+
+    var after = _decodeListCursor(cursor);
+    final matches = <MediaObjectRecord>[];
+    String? lastReadId;
+    var read = 0;
+    var sweptToEnd = false;
+
+    while (read < MediaLimits.ledgerMaxDocs) {
+      final query = AppBootstrap.db
+          .collection(FirestoreMediaObjectLedger.collectionPath)
+          .orderBy(FieldPath.documentId)
+          .limit(MediaLimits.ledgerPageSize);
+      final page = await (after == null ? query : query.startAfter(<Object?>[after])).get();
+      if (page.docs.isEmpty) {
+        sweptToEnd = true;
+        break;
+      }
+      for (final doc in page.docs) {
+        final record = MediaObjectRecord.fromMap(doc.data(), id: doc.id);
+        if (_isLibraryRow(record, kindFilter, state, missingAltOnly)) {
+          if (matches.length >= limit) {
+            // The page is full and one more match exists, so the cursor names the last row actually
+            // handed over. The next call starts after that document: it re-reads only rows the
+            // filters had already rejected, so nothing is shown twice and nothing is skipped.
+            return PagedResult<MediaObjectRecord>(
+              items: matches.toList(growable: false),
+              nextCursor: _encodeListCursor(matches.last.id),
+            );
+          }
+          matches.add(record);
+        }
+        lastReadId = doc.id;
+      }
+      read += page.docs.length;
+      after = page.docs.last.id;
+      if (page.docs.length < MediaLimits.ledgerPageSize) {
+        sweptToEnd = true;
+        break;
+      }
+    }
+
+    if (!sweptToEnd && lastReadId != null) {
+      return PagedResult<MediaObjectRecord>(
+        items: matches.toList(growable: false),
+        nextCursor: _encodeListCursor(lastReadId),
+      );
+    }
+    return PagedResult<MediaObjectRecord>(items: matches.toList(growable: false));
+  }
+
+  static bool _isLibraryRow(
+    MediaObjectRecord record,
+    MediaKind? kind,
+    MediaObjectState? state,
+    bool missingAltOnly,
+  ) {
+    if (kind != null && record.kind != kind) return false;
+    if (state != null && record.state != state) return false;
+    if (missingAltOnly && record.altText.trim().length >= MediaLimits.altTextMinLength) {
+      return false;
+    }
+    return true;
+  }
+
+  /// A `kind` is accepted as the code a stored row carries, so an unknown value is refused instead
+  /// of being mapped to `MediaKind.other` by `mediaKindFromCode` and quietly returning nothing.
+  static MediaKind? _mediaKindFilter(String? kind) {
+    final code = kind?.trim().toLowerCase() ?? '';
+    if (code.isEmpty || code == 'all') return null;
+    for (final candidate in MediaKind.values) {
+      if (candidate.code == code) return candidate;
+    }
+    throw ValidationFailure(
+      'Unknown media kind "$kind". Use one of '
+      '${MediaKind.values.map((candidate) => candidate.code).join(', ')}, or null for all kinds.',
+    );
+  }
+
+  static int _pageSize(int requested) {
+    if (requested < 1) return 1;
+    return requested > MediaLimits.ledgerPageSize ? MediaLimits.ledgerPageSize : requested;
+  }
+
+  static String _encodeListCursor(String documentId) =>
+      base64Url.encode(utf8.encode(jsonEncode(<String, Object?>{'id': documentId})));
+
+  /// A token this library did not issue is an error, not a restart: silently falling back to page
+  /// one would show the first rows twice under a "load more" gesture.
+  static String? _decodeListCursor(String? cursor) {
+    final token = cursor?.trim() ?? '';
+    if (token.isEmpty) return null;
+    Object? id;
+    try {
+      final map = jsonDecode(utf8.decode(base64Url.decode(token))) as Map<String, dynamic>;
+      id = map['id'] as Object?;
+    } catch (_) {
+      id = null;
+    }
+    if (id is! String || id.isEmpty) {
+      throw const ValidationFailure(
+        'That media page token was not issued by this library, so paging cannot continue. Reload '
+        'the media library.',
+      );
+    }
+    return id;
+  }
+
   // ---------------------------------------------------------------- urls
 
   @override
@@ -556,6 +697,14 @@ final class SupabaseMediaRepository
   }) async {
     _requireConfigured('sign a media URL');
     if (storagePath.isEmpty) throw const MediaFailure('Cannot sign an empty media path.');
+    // The path arrives from a caller (and ultimately from a document field), so it is not trusted:
+    // the managed prefixes *are* the authorisation boundary (see MediaPathPolicy), and without this
+    // guard an anon client could ask this bucket to sign a path outside the media folders.
+    if (!paths.isManagedPath(storagePath)) {
+      throw MediaFailure(
+        'Refusing to sign $storagePath: it is outside the managed media prefixes.',
+      );
+    }
     return service.signedUrl(storagePath, ttl: ttl);
   }
 

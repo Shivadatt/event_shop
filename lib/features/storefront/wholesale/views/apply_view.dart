@@ -60,7 +60,7 @@ class _StatusPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                OmText(
+                const OmText(
                   'You are not signed in, so this form cannot be attached to an account yet.',
                   variant: OmTextVariant.caption,
                   overflow: TextOverflow.visible,
@@ -259,7 +259,7 @@ class _ApplyForm extends StatelessWidget {
               ),
             ],
             const SizedBox(height: OmSpacing.md),
-            OmText(
+            const OmText(
               'Submitting an application does not reserve stock or fix a price. Trade pricing, '
               'availability and the payable total are confirmed by the store and by the server '
               'when an order is placed.',

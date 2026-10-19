@@ -134,7 +134,7 @@ void main() {
 
   group('sanitize', () {
     test('neutralises newline injection that would break a meta tag', () {
-      final dirty = 'Hello\nWorld"><script>';
+      const dirty = 'Hello\nWorld"><script>';
       final clean = OmSeo.sanitize(dirty);
       expect(clean.contains('\n'), isFalse);
       expect(clean.contains('\r'), isFalse);

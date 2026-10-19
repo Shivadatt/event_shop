@@ -207,7 +207,7 @@ class _OrdersViewState extends State<OrdersView> {
                         isLoading: controller.isLoading.value,
                         onLoadMore: controller.loadMore,
                         onRefresh: controller.refresh,
-                        totalEstimate: null,
+                        totalEstimate: controller.totalEstimate.value,
                       ),
                     ),
                     const SizedBox(height: OmSpacing.lg),

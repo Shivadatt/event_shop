@@ -17,7 +17,11 @@ import 'package:om_events/data/pricing/pricing_engine.dart';
 Map<String, dynamic> _loadFixture() {
   // `flutter test` runs from the package root, so this relative path resolves there.
   final file = File('test/data/slab_fixtures.json');
-  expect(file.existsSync(), isTrue, reason: 'fixture must exist at test/data/slab_fixtures.json');
+  // A plain throw, not `expect`: this runs while the groups are being declared, outside any test
+  // zone, where `expect` raises OutsideTestException and silently unloads the whole file.
+  if (!file.existsSync()) {
+    throw StateError('fixture must exist at test/data/slab_fixtures.json');
+  }
   return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
 }
 

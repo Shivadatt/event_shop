@@ -34,20 +34,18 @@ final class ForgotPasswordView extends GetView<ForgotPasswordController> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              OmCard(
+              const OmCard(
                 borderColor: OmColors.success,
-                padding: const EdgeInsets.all(OmSpacing.md),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const Icon(Icons.mark_email_read_outlined,
+                    Icon(Icons.mark_email_read_outlined,
                         size: 20, color: OmColors.success),
-                    const SizedBox(width: OmSpacing.sm),
+                    SizedBox(width: OmSpacing.sm),
                     Expanded(
                       child: OmText(
                         'If that address has an account, a reset link is on its way. Check your '
                         'spam folder too — the link is single-use and expires after an hour.',
-                        variant: OmTextVariant.body,
                         overflow: TextOverflow.visible,
                       ),
                     ),

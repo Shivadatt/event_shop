@@ -152,16 +152,16 @@ class _ValueCard extends StatelessWidget {
                 }
                 return OmAdminMetaRow(
                   entries: <OmAdminMeta>[
-                    OmAdminMeta(label: 'Orders', value: '${row.units}', emphasise: true),
+                    OmAdminMeta(label: 'Orders', value: '${row.orderCount}', emphasise: true),
                     OmAdminMeta(
                       label: 'Paid',
                       value: _rupees(row.revenuePaise),
                       emphasise: true,
                     ),
-                    OmAdminMeta(label: 'Refunded', value: _rupees(row.discountPaise)),
+                    OmAdminMeta(label: 'Refunded', value: _rupees(row.refundedPaise)),
                     OmAdminMeta(
                       label: 'Net',
-                      value: _rupees(row.revenuePaise - row.discountPaise),
+                      value: _rupees(row.revenuePaise - row.refundedPaise),
                     ),
                   ],
                 );
@@ -171,7 +171,6 @@ class _ValueCard extends StatelessWidget {
                 'Net is the paid aggregate minus the refunded aggregate — both server numbers. '
                 'Order-line pricing on each of those orders is the snapshot stored with the order.',
                 variant: OmTextVariant.caption,
-                maxLines: null,
               ),
             ],
           ),
@@ -229,10 +228,8 @@ class _OrdersCard extends StatelessWidget {
               const SizedBox(height: OmSpacing.sm),
               Obx(
                 () => OmText(
-                  '${controller.loadedOrderCount} order row(s) loaded for this account. '
-                  'The lifetime figures above come from the server aggregate, not from these rows.',
+                  controller.ordersCountText,
                   variant: OmTextVariant.caption,
-                  maxLines: null,
                 ),
               ),
             ],
@@ -279,6 +276,12 @@ class _PrivilegedCardState extends State<_PrivilegedCard> {
       title: 'Reason for the role change',
     );
     if (reason == null) return;
+    // The reason prompt is an async gap: on web the operator can navigate away while it is open, so
+    // the confirmation dialog must not be built against a defunct element. Inside a `State`,
+    // `mounted` is the guard the analyzer understands for `this.context` (a `context.mounted` check
+    // on the inherited getter is not tracked), and it implies the same thing: this element is still
+    // in the tree.
+    if (!mounted) return;
     final confirmed = await omConfirmAdminAction(
       context: context,
       title: 'Change role to ${target.code}?',
@@ -301,6 +304,8 @@ class _PrivilegedCardState extends State<_PrivilegedCard> {
       title: blocked ? 'Block account' : 'Unblock account',
     );
     if (reason == null) return;
+    // Same async gap as the role change — see the note there for why `mounted` is the guard.
+    if (!mounted) return;
     final confirmed = await omConfirmAdminAction(
       context: context,
       title: blocked ? 'Block this customer?' : 'Unblock this customer?',
@@ -363,7 +368,7 @@ class _PrivilegedCardState extends State<_PrivilegedCard> {
                   Obx(
                     () => OmButton(
                       label: 'Save role change',
-                      icon: Icons.person_edit_outlined,
+                      icon: Icons.manage_accounts_outlined,
                       loading: widget.controller.isSubmitting.value,
                       onPressed: widget.controller.isSubmitting.value || _role == profile.role
                           ? null
@@ -387,7 +392,6 @@ class _PrivilegedCardState extends State<_PrivilegedCard> {
                 message: 'A customer cannot be given wholesale pricing from this card. Approval '
                     'happens on the wholesale queue, which is the only path to wholesale prices — '
                     'setting the role here is for staff access, not for repricing an account.',
-                tone: OmTone.info,
                 icon: Icons.info_outline,
               ),
             ],

@@ -103,7 +103,7 @@ class _CouponFieldState extends State<CouponField> {
             ),
             if (quote != null && quote.freeShipping) ...<Widget>[
               const SizedBox(height: OmSpacing.sm),
-              OmText(
+              const OmText(
                 'This code also waives the delivery charge; the server applies it at checkout.',
                 variant: OmTextVariant.caption,
               ),

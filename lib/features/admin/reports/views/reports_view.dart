@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
-import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
@@ -174,6 +173,9 @@ final class ReportsView extends StatelessWidget {
       return;
     }
     final total = controller.isDayReport ? controller.daily.length : controller.rows.length;
+    // The CSV read is a network round trip: on web the operator can navigate away during it, so the
+    // dialog must not be opened against a defunct context.
+    if (!context.mounted) return;
     await omShowAdminCsv(
       context,
       title: '${controller.selected.value.label} export',

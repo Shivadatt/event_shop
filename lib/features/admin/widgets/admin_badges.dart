@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/data/models/coupon.dart';
 import 'package:om_events/data/models/inventory.dart';
@@ -184,7 +183,7 @@ String stockMovementLabel(StockMovementKind kind) => switch (kind) {
 /// can never disagree with what the code will actually honour.
 OmBadge couponBadge(Coupon coupon) {
   if (!coupon.isActive) {
-    return const OmBadge(label: 'Disabled', tone: OmTone.neutral, dense: true);
+    return const OmBadge(label: 'Disabled', dense: true);
   }
   if (coupon.isExhausted) {
     return const OmBadge(label: 'Exhausted', tone: OmTone.warning, dense: true);

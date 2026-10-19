@@ -43,7 +43,7 @@ class _ProductGalleryState extends State<ProductGallery> {
           aspectRatio: 1,
           child: hasImages
               ? OmMediaImage(ref: active, useThumbnail: false)
-              : OmMediaImage(ref: null),
+              : const OmMediaImage(ref: null),
         ),
         if (hasImages && images.length > 1) ...<Widget>[
           const SizedBox(height: OmSpacing.sm),
@@ -52,7 +52,7 @@ class _ProductGalleryState extends State<ProductGallery> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: images.length,
-              separatorBuilder: (_, __) => const SizedBox(width: OmSpacing.sm),
+              separatorBuilder: (_, _) => const SizedBox(width: OmSpacing.sm),
               itemBuilder: (context, index) {
                 final selected = index == _selected;
                 return Semantics(

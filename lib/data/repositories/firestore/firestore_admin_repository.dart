@@ -1,9 +1,10 @@
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/firebase/firebase_backend.dart';
 import 'package:om_events/data/models/audit_log.dart';
+import 'package:om_events/data/models/category.dart';
 import 'package:om_events/data/models/coupon.dart';
 import 'package:om_events/data/models/inventory.dart';
 import 'package:om_events/data/models/order.dart';
@@ -73,11 +74,11 @@ final class FirestoreAdminRepository implements AdminRepository {
     // Admin sees every status, including wholesale-only rows, so the public builder (which forces
     // status=active and hides wholesale-only from retail shoppers) is not used here. Staff-read of
     // the whole collection is permitted by the rules regardless of a doc's status.
-    Query<Map<String, dynamic>> q = Collections.products_.orderBy('updatedAt', descending: true).orderBy(documentId: true);
+    Query<Map<String, dynamic>> q = Collections.products_.orderBy('updatedAt', descending: true).orderBy(FieldPath.documentId);
     if (status != null) q = q.where('status', isEqualTo: status.code);
     final term = (query?.search ?? '').trim().toLowerCase();
     final after = _decodeCursor(cursor);
-    if (after != null) q = q.startAfter(after.value, after.id);
+    if (after != null) q = q.startAfter([after.value, after.id]);
     // A name/SKU substring cannot pair with the updatedAt sort in one indexed query, so a search
     // reads a wider window and filters in Dart; the cursor still advances from the last raw doc.
     final fetchLimit = term.isEmpty ? pageSize + 1 : 200;
@@ -141,10 +142,41 @@ final class FirestoreAdminRepository implements AdminRepository {
     return Product.fromMap(data, id: _str(data['id']));
   }
 
+  // ---- categories ----
+
+  @override
+  Future<Category> saveCategory(Category category) async {
+    // Privileged write: role re-checked server-side, productCount is trigger-owned and never
+    // crosses this payload as a writable field. The callable mints an id for a new category.
+    final data = await FirebaseBackend.call('adminCategorySave', <String, Object?>{
+      'category': <String, Object?>{
+        ...category.toWriteMap(),
+        'id': category.id,
+      },
+    });
+    final id = _str(data['id']).isEmpty ? category.id : _str(data['id']);
+    return Category.fromMap(data, id: id);
+  }
+
+  @override
+  Future<void> deleteCategory(String categoryId) async {
+    await FirebaseBackend.call('adminCategoryDelete', <String, Object?>{'categoryId': categoryId});
+  }
+
   // ---- variants ----
 
   @override
   Future<void> saveVariant(ProductVariant variant) async {
+    // Cost-price carry-through, verified rather than assumed: `adminVariantSave` writes with
+    // `merge: true`, and merge preserves an ABSENT key but overwrites with a key present as `0`.
+    // `ProductVariant.costPricePaise` is a nullable `int?` read with `readInt` (NOT `readIntOrZero`)
+    // and `toWriteMap({includeCost: true})` emits `includeCost ? costPricePaise : null`, which
+    // `compact()` strips — so a caller that does not know the cost transmits no `costPricePaise`
+    // key at all and the stored value survives. That is the whole defence; do not "helpfully"
+    // default it to 0 anywhere in this payload, and do not move the field to `readIntOrZero`, which
+    // would silently zero every stored cost and poison each margin report built from it.
+    // `stockQty` is ledger-owned and stripped server-side (functions/index.js adminVariantSave);
+    // `AdminRepository.adjustStock` / `setOpeningStock` are the only paths that move stock.
     final payload = <String, Object?>{
       ...variant.toWriteMap(includeCost: true),
       'id': variant.id,
@@ -238,6 +270,8 @@ final class FirestoreAdminRepository implements AdminRepository {
   Future<PagedResult<Order>> listOrders({
     OrderStatus? status,
     PaymentStatus? paymentStatus,
+    DeliveryMode? deliveryMode,
+    String? customerId,
     String? search,
     DateTime? from,
     DateTime? to,
@@ -252,17 +286,30 @@ final class FirestoreAdminRepository implements AdminRepository {
           .where('orderNumber', isEqualTo: term)
           .limit(pageSize)
           .get();
-      return PagedResult<Order>(items: FirestoreConverters.orders(snap.docs));
+      return PagedResult<Order>(
+        items: FirestoreConverters.orders(snap.docs),
+        totalEstimate: snap.size,
+      );
     }
     Query<Map<String, dynamic>> q = Collections.orders_;
     if (status != null) q = q.where('status', isEqualTo: status.code);
     if (paymentStatus != null) q = q.where('paymentStatus', isEqualTo: paymentStatus.code);
+    if (deliveryMode != null) q = q.where('deliveryMode', isEqualTo: deliveryMode.code);
+    if (customerId != null && customerId.isNotEmpty) q = q.where('userId', isEqualTo: customerId);
     final after = _decodeCursor(cursor);
     // The from/to window is the single allowed range; it is also the sort field.
-    q = q.orderBy('createdAt', descending: true).orderBy(documentId: true);
+    q = q.orderBy('createdAt', descending: true).orderBy(FieldPath.documentId);
     if (from != null) q = q.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(from));
     if (to != null) q = q.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(to));
-    if (after != null) q = q.startAfter(after.value, after.id);
+    if (after != null) q = q.startAfter([after.value, after.id]);
+    // A page of rows cannot answer "how many orders does this account have", and the customer
+    // detail panel used to pass its page size off as that number. The count is taken on the scoped
+    // query before the cursor is applied, so it is the lifetime total, and only for the one caller
+    // that needs it — the orders queue does not pay for an extra aggregate read.
+    int? totalEstimate;
+    if (customerId != null && customerId.isNotEmpty && after == null) {
+      totalEstimate = (await q.count().get()).count;
+    }
     final snap = await q.limit(pageSize + 1).get();
     final docs = snap.docs;
     final hasMore = docs.length > pageSize;
@@ -271,6 +318,7 @@ final class FirestoreAdminRepository implements AdminRepository {
     return PagedResult<Order>(
       items: FirestoreConverters.orders(page),
       nextCursor: hasMore && last != null ? _encodeCursor(last, 'createdAt') : null,
+      totalEstimate: totalEstimate,
     );
   }
 
@@ -363,10 +411,10 @@ final class FirestoreAdminRepository implements AdminRepository {
     String? cursor,
   }) async {
     final term = (search ?? '').trim().toLowerCase();
-    Query<Map<String, dynamic>> q = Collections.users_.orderBy('createdAt', descending: true).orderBy(documentId: true);
+    Query<Map<String, dynamic>> q = Collections.users_.orderBy('createdAt', descending: true).orderBy(FieldPath.documentId);
     if (role != null) q = q.where('role', isEqualTo: role.code);
     final after = _decodeCursor(cursor);
-    if (after != null) q = q.startAfter(after.value, after.id);
+    if (after != null) q = q.startAfter([after.value, after.id]);
     final snap = await q.limit(pageSize + 1).get();
     // Name/email/company search has no index that pairs with the createdAt sort, so it runs on the
     // page and the cursor still advances from the last *read* document (not the last match), which
@@ -455,6 +503,19 @@ final class FirestoreAdminRepository implements AdminRepository {
     await FirebaseBackend.call('adminCustomerPriceDelete', <String, Object?>{'overrideId': overrideId});
   }
 
+  @override
+  Future<List<CustomerPriceOverride>> listCustomerPrices({String? productId, String? uid}) async {
+    // Read goes through the callable: the rules deny every direct client read of this collection so
+    // a contract price can never leak to the browser; the function re-verifies the admin role.
+    final data = await FirebaseBackend.call('adminCustomerPriceList', <String, Object?>{
+      'productId': productId,
+      'uid': uid,
+    });
+    return _list(data['rows'])
+        .map((m) => CustomerPriceOverride.fromMap(m, id: _str(m['id'])))
+        .toList(growable: false);
+  }
+
   // ---- reviews ----
 
   @override
@@ -513,12 +574,24 @@ final class FirestoreAdminRepository implements AdminRepository {
   // ---- audit ----
 
   @override
-  Future<PagedResult<AuditLog>> auditLogs({String? entityType, String? action, int pageSize = 50, String? cursor}) async {
-    Query<Map<String, dynamic>> q = Collections.auditLogs_.orderBy('createdAt', descending: true).orderBy(documentId: true);
+  Future<PagedResult<AuditLog>> auditLogs({
+    String? entityType,
+    String? action,
+    String? actorUid,
+    DateTime? from,
+    DateTime? to,
+    int pageSize = 50,
+    String? cursor,
+  }) async {
+    Query<Map<String, dynamic>> q = Collections.auditLogs_.orderBy('createdAt', descending: true).orderBy(FieldPath.documentId);
     if (entityType != null && entityType.isNotEmpty) q = q.where('entityType', isEqualTo: entityType);
     if (action != null && action.isNotEmpty) q = q.where('action', isEqualTo: action);
+    if (actorUid != null && actorUid.isNotEmpty) q = q.where('actorUid', isEqualTo: actorUid);
+    // The createdAt window is the single allowed range and pairs with the createdAt sort.
+    if (from != null) q = q.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(from));
+    if (to != null) q = q.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(to));
     final after = _decodeCursor(cursor);
-    if (after != null) q = q.startAfter(after.value, after.id);
+    if (after != null) q = q.startAfter([after.value, after.id]);
     final snap = await q.limit(pageSize + 1).get();
     final docs = snap.docs;
     final hasMore = docs.length > pageSize;
@@ -556,6 +629,32 @@ final class FirestoreAdminRepository implements AdminRepository {
   @override
   Future<List<ReportRow>> cancelledOrRefunded({required DateTime from, required DateTime to}) =>
       _report('cancelled_or_refunded', from: from, to: to);
+
+  @override
+  Future<List<ReportRow>> salesByDay({required DateTime from, required DateTime to}) async {
+    // Server-summed so a browser can never forge a revenue curve.
+    final data = await FirebaseBackend.call('adminSalesByDay', <String, Object?>{
+      'from': from.toUtc().toIso8601String(),
+      'to': to.toUtc().toIso8601String(),
+    });
+    return _list(data['rows']).map(_reportRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<ReportRow>> topCustomers({int limit = 20}) async {
+    final data = await FirebaseBackend.call('adminTopCustomers', <String, Object?>{'limit': limit});
+    return _list(data['rows']).map(_reportRow).toList(growable: false);
+  }
+
+  @override
+  Future<ReportRow> customerValue(String uid) async {
+    final data = await FirebaseBackend.call('adminCustomerValue', <String, Object?>{'uid': uid});
+    final row = data['row'];
+    if (row is! Map) {
+      return ReportRow(key: uid, label: uid, units: 0, revenuePaise: 0);
+    }
+    return _reportRow(row.cast<String, dynamic>());
+  }
 
   Future<List<ReportRow>> _report(String reportId, {DateTime? from, DateTime? to}) async {
     final data = await FirebaseBackend.call('adminReport', <String, Object?>{
@@ -606,6 +705,8 @@ final class FirestoreAdminRepository implements AdminRepository {
         revenuePaise: _int(m['revenuePaise']),
         costPaise: _int(m['costPaise']),
         discountPaise: _int(m['discountPaise']),
+        orderCount: _int(m['orderCount']),
+        refundedPaise: _int(m['refundedPaise']),
       );
 
   static String _encodeCursor(QueryDocumentSnapshot<Map<String, dynamic>> last, String sortField) {

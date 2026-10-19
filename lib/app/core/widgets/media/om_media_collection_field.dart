@@ -176,9 +176,8 @@ class _OmMediaCollectionFieldState extends State<OmMediaCollectionField> {
               label: 'Add images',
               icon: Icons.add_photo_alternate_outlined,
               variant: OmButtonVariant.outline,
-              onPressed: editor.canAddMore && editor.isConfigured
-                  ? () => editor.addFromPicker()
-                  : null,
+              onPressed:
+                  editor.canAddMore && editor.isConfigured ? editor.addFromPicker : null,
             ),
             if (!editor.canAddMore) ...<Widget>[
               const SizedBox(height: OmSpacing.xs),

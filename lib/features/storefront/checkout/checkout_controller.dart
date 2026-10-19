@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
@@ -106,11 +108,18 @@ final class CheckoutController extends GetxController {
       gstNumber.text = profile.gstNumber;
     }
     pincode.addListener(_syncPincode);
+    // Guest gating is the flow's decision, not the route's: `CheckoutGuard` may have let a
+    // visitor through before `store_settings` landed, so enforce now and on every refresh.
+    // Deferred one microtask because navigating inside onInit races the router mid-build.
+    _guestGateWorker = ever(Get.find<SettingsStore>().settings, (_) => enforceGuestGate());
+    unawaited(Future<void>.microtask(enforceGuestGate));
     loadAddresses();
   }
 
   @override
   void onClose() {
+    _guestGateWorker?.dispose();
+    _guestGateWorker = null;
     pincode.removeListener(_syncPincode);
     for (final controller in <TextEditingController>[
       name,
@@ -153,6 +162,23 @@ final class CheckoutController extends GetxController {
     return isSignedIn
         ? null
         : 'This store requires an account before ordering. Sign in and your cart will be here.';
+  }
+
+  Worker? _guestGateWorker;
+
+  /// `CheckoutGuard` lets a visitor through when the settings cache has not landed yet (a
+  /// `GetMiddleware` redirect is synchronous). Once `store_settings` arrives saying guest
+  /// checkout is off, bounce exactly like the guard would have.
+  void enforceGuestGate() {
+    if (!isGuestCheckout) return;
+    if (!Get.find<SettingsStore>().isLive) return;
+    if (guestAllowed) return;
+    Get.offNamed<dynamic>(
+      OmRoutes.login,
+      parameters: <String, String>{
+        OmRouteArgs.returnUrl: Uri.encodeComponent(OmRoutes.checkout),
+      },
+    );
   }
 
   // ── Display maths (PricingEngine only) ─────────────────────────────────────────────────────
@@ -495,7 +521,6 @@ final class CheckoutController extends GetxController {
     placing.value = true;
     placeFailure.value = null;
     changesAccepted.value = false;
-    final estimate = totals;
     final receipt = await safeCall<OrderReceipt>(
       () => Get.find<OrderRepository>().createOrder(buildDraft()),
       onFailure: (f) => placeFailure.value = f,
@@ -653,7 +678,7 @@ final class CheckoutController extends GetxController {
     Get.snackbar(
       'Cancellation requested',
       'We asked the store to release ${receipt.orderNumber}. Your cart is untouched.',
-      snackDuration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 5),
     );
   }
 

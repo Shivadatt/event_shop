@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:om_events/app/core/services/session_store.dart';
 import 'package:om_events/app/routes/app_routes.dart';
@@ -17,12 +19,12 @@ mixin WishlistToggleMixin on GetxController {
   Future<bool?> toggleWishlist(Product product) async {
     final session = Get.find<SessionStore>();
     if (!session.isSignedIn) {
-      Get.toNamed<dynamic>(
+      unawaited(Get.toNamed<dynamic>(
         OmRoutes.login,
         parameters: <String, String>{
           OmRouteArgs.returnUrl: Uri.encodeComponent(Get.currentRoute),
         },
-      );
+      ));
       return null;
     }
     final add = !(session.profile?.wishlistProductIds.contains(product.id) ?? false);

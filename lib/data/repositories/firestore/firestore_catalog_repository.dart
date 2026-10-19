@@ -144,10 +144,10 @@ final class FirestoreProductRepository implements ProductRepository {
   @override
   Stream<PagedResult<Product>> watchSearch(CatalogQuery query) {
     final effective = _resolver.clearSlugIfUsingIds(query, const <String>[]);
-    final q = CatalogQueryBuilder.build(
-      query.copyWith(cursor: null),
-      categoryIds: const <String>[],
-    ).limit(query.pageSize + 1);
+    // A watch is always the first page of its own filter set, so the cursor is dropped: `copyWith()`
+    // with no argument clears it (its `cursor` parameter already defaults to null), and `build` takes
+    // no descendant ids here for the same reason the resolver above is handed an empty list.
+    final q = CatalogQueryBuilder.build(query.copyWith()).limit(query.pageSize + 1);
     return q.snapshots().map((snap) => _page(snap, effective));
   }
 

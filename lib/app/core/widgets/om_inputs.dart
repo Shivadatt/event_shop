@@ -209,6 +209,13 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
     widget.onChanged(next);
   }
 
+  /// The number has to be inside the spoken label, not only on screen: a stepper announced as
+  /// "Quantity for Latex Balloon Pack" leaves the customer unable to hear what it currently holds.
+  String get _spokenLabel {
+    final label = widget.label;
+    return label == null ? 'Quantity ${widget.value}' : '$label, ${widget.value}';
+  }
+
   @override
   void dispose() {
     _repeat?.cancel();
@@ -223,19 +230,24 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
     final canDecrease = widget.enabled && widget.value > widget.min;
     final canIncrease = widget.enabled && (max == null || widget.value < max);
 
-    return Semantics(
-      label: widget.label ?? 'Quantity ${widget.value}',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _stepButton(
-            icon: Icons.remove,
-            onTap: canDecrease ? () => _startRepeat(-widget.multiple) : null,
-            tooltip: 'Decrease quantity',
-            height: height,
-            isDark: isDark,
-          ),
-          Container(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _stepButton(
+          icon: Icons.remove,
+          onTap: canDecrease ? () => _startRepeat(-widget.multiple) : null,
+          tooltip: 'Decrease quantity',
+          height: height,
+          isDark: isDark,
+        ),
+        // The name has to sit on a node of its own: a plain `Semantics` annotation only merges its
+        // label into whatever block surrounds the stepper, so the product and the value would never
+        // be announced together. Same recipe as the payable row in `CartTotalsPanel`.
+        Semantics(
+          container: true,
+          excludeSemantics: true,
+          label: _spokenLabel,
+          child: Container(
             constraints: BoxConstraints(minWidth: widget.dense ? 44 : 56),
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: OmSpacing.sm),
@@ -247,16 +259,16 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
               textAlign: TextAlign.center,
             ),
           ),
-          _stepButton(
-            icon: Icons.add,
-            onTap: canIncrease ? () => _startRepeat(widget.multiple) : null,
-            tooltip: 'Increase quantity',
-            height: height,
-            isDark: isDark,
-          ),
-        ],
-      ).wrapWithBorder(context, height),
-    );
+        ),
+        _stepButton(
+          icon: Icons.add,
+          onTap: canIncrease ? () => _startRepeat(widget.multiple) : null,
+          tooltip: 'Increase quantity',
+          height: height,
+          isDark: isDark,
+        ),
+      ],
+    ).wrapWithBorder(context, height);
   }
 
   Widget _stepButton({
@@ -268,18 +280,24 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
   }) =>
       Tooltip(
         message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            height: height,
-            width: height,
-            child: Icon(
-              icon,
-              size: 18,
-              color: onTap == null
-                  ? Theme.of(context).disabledColor
-                  : (isDark ? OmColors.textOnDark : OmColors.textPrimary),
+        // A tooltip is a description, not an accessible name: without the label on the node a
+        // voice-control customer cannot say "tap Increase quantity". Same shape as OmIconButton.
+        child: Semantics(
+          button: true,
+          label: tooltip,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              height: height,
+              width: height,
+              child: Icon(
+                icon,
+                size: 18,
+                color: onTap == null
+                    ? Theme.of(context).disabledColor
+                    : (isDark ? OmColors.textOnDark : OmColors.textPrimary),
+              ),
             ),
           ),
         ),

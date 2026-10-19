@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
@@ -49,12 +50,12 @@ class _CartTable extends StatelessWidget {
         headingRowHeight: 40,
         horizontalMargin: OmSpacing.sm,
         columnSpacing: OmSpacing.xl,
-        columns: <DataColumn>[
-          const DataColumn(label: Text('Item')),
-          const DataColumn(label: Text('Unit price')),
-          const DataColumn(label: Text('Quantity')),
-          const DataColumn(label: Text('Line total')),
-          const DataColumn(label: Text(''), numeric: true),
+        columns: const <DataColumn>[
+          DataColumn(label: Text('Item')),
+          DataColumn(label: Text('Unit price')),
+          DataColumn(label: Text('Quantity')),
+          DataColumn(label: Text('Line total')),
+          DataColumn(label: Text(''), numeric: true),
         ],
         rows: <DataRow>[
           for (final row in rows)
@@ -181,7 +182,7 @@ class _LineIdentity extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(Icons.info_outline, size: 14, color: OmColors.warning),
+              const Icon(Icons.info_outline, size: 14, color: OmColors.warning),
               const SizedBox(width: OmSpacing.xs),
               Expanded(
                 child: Text(

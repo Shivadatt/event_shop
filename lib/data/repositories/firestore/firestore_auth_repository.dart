@@ -49,7 +49,7 @@ final class FirestoreAuthRepository implements AuthRepository {
         }
         _emit(FirestoreConverters.user(snap));
       },
-      onError: (Object error, StackTrace stack) => _emitError(error, stack),
+      onError: _emitError,
     );
   }
 
@@ -142,6 +142,41 @@ final class FirestoreAuthRepository implements AuthRepository {
       await FirebaseBackend.auth.sendPasswordResetEmail(email: email.trim());
     } on FirebaseAuthException catch (error) {
       throw _mapAuthError(error);
+    }
+  }
+
+  /// Backed by `FirebaseAuth.confirmPasswordReset({required String code, required String newPassword})`
+  /// (firebase_auth 7.0.0, `lib/src/firebase_auth.dart:203`; implemented on web by
+  /// firebase_auth_web 6.3.1, so this is not a native-only call). Our parameter is named `oobCode`
+  /// to match the deep-link key the storefront reads; it maps to the SDK's `code:` here.
+  ///
+  /// Possession of the emailed link is the authorisation for this operation — see the contract note
+  /// on [AuthRepository.confirmPasswordReset]. Nothing is decided locally: the new password goes to
+  /// Firebase, and role authority stays on `users/{uid}`.
+  @override
+  Future<void> confirmPasswordReset({
+    required String oobCode,
+    required String newPassword,
+  }) async {
+    final code = oobCode.trim();
+    if (code.isEmpty) {
+      throw const ValidationFailure(
+        'That reset link is incomplete — open the link from the email, or send yourself a new one.',
+        field: 'oobCode',
+      );
+    }
+    if (newPassword.isEmpty) {
+      throw const ValidationFailure(
+        'Enter the new password you would like to use.',
+        field: 'password',
+      );
+    }
+    try {
+      await FirebaseBackend.auth.confirmPasswordReset(code: code, newPassword: newPassword);
+    } on FirebaseAuthException catch (error) {
+      throw _mapResetError(error);
+    } on FirebaseException catch (error) {
+      throw FirebaseBackend.mapFirebaseError(error);
     }
   }
 
@@ -244,6 +279,55 @@ final class FirestoreAuthRepository implements AuthRepository {
     await _controller.close();
     await _roleController.close();
   }
+
+  /// Reset-link errors, mapped separately from [_mapAuthError] because that switch is written for
+  /// credentials ("incorrect email or password") and would be a lie here: an expired link is not a
+  /// wrong password, and sending someone back to the sign-in form does not help them.
+  ///
+  /// firebase_auth_web strips the `auth/` prefix before the code reaches us
+  /// (`firebase_auth_web-6.3.1/lib/src/utils/web_utils.dart:89`), so these keys are bare. Firebase's
+  /// docs for `confirmPasswordReset` name `expired-action-code` / `invalid-action-code`; current JS
+  /// SDK builds answer the same failure as `code-expired` / `invalid-code`. Both spellings are
+  /// handled rather than betting on one.
+  static OmFailure _mapResetError(FirebaseAuthException error) => switch (error.code) {
+        'expired-action-code' || 'code-expired' =>
+          const ValidationFailure(
+            'That reset link has expired. Request a new password email and open the fresh link.',
+            field: 'oobCode',
+          ),
+        'invalid-action-code' || 'invalid-code' || 'invalid-oob-code' || 'malformed-oob-code' ||
+        'argument-error' =>
+          const ValidationFailure(
+            'That reset link is not valid — it has either already been used or was damaged in '
+            'transit. Send yourself a new one and open it in this browser.',
+            field: 'oobCode',
+          ),
+        'user-not-found' =>
+          const NotFoundFailure(
+            'That reset link no longer belongs to an account on this store.',
+          ),
+        'user-disabled' =>
+          const PermissionFailure(
+            'This account has been suspended, so its password cannot be reset. Contact support.',
+          ),
+        'weak-password' =>
+          const ValidationFailure('Choose a stronger password.', field: 'password'),
+        'too-many-requests' =>
+          const ServerFailure('Too many attempts. Please wait a few minutes and try again.'),
+        'network-request-failed' => const NetworkFailure(),
+        'requires-recent-login' || 'user-not-signed-in' =>
+          // Not a session problem: completing a reset link needs no signed-in user at all.
+          const ValidationFailure(
+            'Open the link from the password-reset email to finish resetting the password.',
+            field: 'oobCode',
+          ),
+        'operation-not-allowed' =>
+          const PermissionFailure('Password reset is not enabled for this store.'),
+        _ => ValidationFailure(
+            error.message ?? 'The reset could not be completed. Send a new reset email.',
+            field: 'oobCode',
+          ),
+      };
 
   static OmFailure _mapAuthError(FirebaseAuthException error) => switch (error.code) {
         'invalid-email' || 'user-disabled' || 'user-not-found' || 'wrong-password' ||

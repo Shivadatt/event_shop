@@ -105,7 +105,7 @@ final class SupportView extends GetView<SupportController> {
                     ),
                     if (controller.opened.value) ...<Widget>[
                       const SizedBox(height: OmSpacing.md),
-                      OmText(
+                      const OmText(
                         'Ticket created. It appears in your list below and the store answers here '
                         'or on the contact channel you prefer.',
                         variant: OmTextVariant.caption,

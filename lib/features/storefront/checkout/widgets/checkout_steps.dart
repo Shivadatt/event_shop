@@ -288,7 +288,7 @@ class _AddressPicker extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          OmText('Saved addresses', variant: OmTextVariant.bodyStrong),
+          const OmText('Saved addresses', variant: OmTextVariant.bodyStrong),
           const SizedBox(height: OmSpacing.sm),
           for (final entry in controller.addresses)
             Padding(
@@ -296,7 +296,6 @@ class _AddressPicker extends StatelessWidget {
               child: OmCard(
                 onTap: () => controller.selectAddress(entry),
                 highlight: selected?.id == entry.id,
-                padding: const EdgeInsets.all(OmSpacing.md),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -383,7 +382,7 @@ class _PickupCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            OmText('Pick up from', variant: OmTextVariant.bodyStrong),
+            const OmText('Pick up from', variant: OmTextVariant.bodyStrong),
             const SizedBox(height: OmSpacing.sm),
             OmText(
               full.isEmpty ? 'The store has not published a pickup address yet.' : full,
@@ -394,7 +393,7 @@ class _PickupCard extends StatelessWidget {
             const SizedBox(height: OmSpacing.sm),
             OmText(controller.etaLabel, variant: OmTextVariant.caption),
             const SizedBox(height: OmSpacing.sm),
-            OmText(
+            const OmText(
               'No delivery charge is added for pickup. The confirmed bill still comes from the '
               'order server.',
               variant: OmTextVariant.caption,

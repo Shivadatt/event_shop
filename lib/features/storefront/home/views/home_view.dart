@@ -93,7 +93,6 @@ class _HeroSection extends StatelessWidget {
           borderRadius: OmRadius.lgAll,
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             Expanded(
               flex: 3,
@@ -102,7 +101,7 @@ class _HeroSection extends StatelessWidget {
                 children: <Widget>[
                   Text(tagline.toUpperCase(), style: styles.label),
                   const SizedBox(height: OmSpacing.sm),
-                  OmText(
+                  const OmText(
                     'Decor, balloons and party supplies at wholesale prices.',
                     variant: OmTextVariant.display,
                     color: OmColors.textOnDark,
@@ -164,7 +163,7 @@ class _HeroSection extends StatelessWidget {
                   child: OmMediaImage(ref: banner, useThumbnail: false),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       );
@@ -295,7 +294,7 @@ class _ShelfSection extends StatelessWidget {
           if (loading.value && list.isEmpty) {
             return OmProductGrid(
               itemCount: context.omColumnCount,
-              itemBuilder: (_, __) => const OmProductCardSkeleton(),
+              itemBuilder: (_, _) => const OmProductCardSkeleton(),
             );
           }
           final error = failure.value;
@@ -335,7 +334,7 @@ class _WholesalePitch extends StatelessWidget {
           children: <Widget>[
             Text('WHOLESALE PROGRAMME', style: context.omText.label),
             const SizedBox(height: OmSpacing.sm),
-            OmText(
+            const OmText(
               'Event decorators, retailers and caterers: unlock quantity pricing, negotiated '
               'rates and the bulk-order sheet once your business details are approved.',
               variant: OmTextVariant.lead,

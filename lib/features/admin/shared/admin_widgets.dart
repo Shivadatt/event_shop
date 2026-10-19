@@ -101,7 +101,7 @@ final class OmAdminResponsiveList extends StatelessWidget {
               columns: columns,
               onTapRow: onTapRow,
             ),
-            if (footer != null) footer!,
+            ?footer,
           ],
         ),
         asCards: Column(
@@ -112,7 +112,7 @@ final class OmAdminResponsiveList extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: OmSpacing.sm),
                 child: cardBuilder(context, index),
               ),
-            if (footer != null) footer!,
+            ?footer,
           ],
         ),
       );
@@ -221,7 +221,6 @@ final class OmAdminRowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OmCard(
         onTap: onTap,
-        padding: const EdgeInsets.all(OmSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -364,7 +363,6 @@ final class OmAdminFilterBar extends StatelessWidget {
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         SizedBox(width: 300, child: search ?? const SizedBox.shrink()),
         const SizedBox(width: OmSpacing.md),
@@ -377,7 +375,7 @@ final class OmAdminFilterBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: OmSpacing.md),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }
@@ -441,7 +439,7 @@ final class OmAdminNotice extends StatelessWidget {
                     OmText(title!, variant: OmTextVariant.label, color: _accent),
                     const SizedBox(height: OmSpacing.xs),
                   ],
-                  OmText(message, variant: OmTextVariant.caption, maxLines: null),
+                  OmText(message, variant: OmTextVariant.caption),
                 ],
               ),
             ),

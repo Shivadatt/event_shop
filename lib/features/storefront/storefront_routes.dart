@@ -22,10 +22,12 @@ import 'package:om_events/features/storefront/cart/views/cart_view.dart';
 import 'package:om_events/features/storefront/catalog/catalog_binding.dart';
 import 'package:om_events/features/storefront/catalog/views/category_view.dart';
 import 'package:om_events/features/storefront/checkout/checkout_binding.dart';
+import 'package:om_events/features/storefront/checkout/checkout_guard.dart';
 import 'package:om_events/features/storefront/checkout/views/checkout_view.dart';
 import 'package:om_events/features/storefront/common/storefront_binding.dart';
 import 'package:om_events/features/storefront/common/storefront_route_names.dart';
 import 'package:om_events/features/storefront/home/home_binding.dart';
+import 'package:om_events/features/storefront/home/views/home_view.dart';
 import 'package:om_events/features/storefront/product_details/product_details_binding.dart';
 import 'package:om_events/features/storefront/product_details/views/product_details_view.dart';
 import 'package:om_events/features/storefront/reviews/review_binding.dart';
@@ -81,8 +83,11 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         bindings: <Bindings>[StorefrontBinding(), SearchBinding()],
       ),
 
-      // Buying. The cart stays open to visitors; `StoreSettings.allowGuestCheckout` is honoured
-      // inside the checkout flow itself (see the note on `checkout` below).
+      // Buying. The cart stays open to visitors. `/checkout` does not take the blanket `AuthGuard`:
+      // guest checkout is a store setting (`StoreSettings.allowGuestCheckout`), and a guard that
+      // bounced every visitor to login made it unreachable. `CheckoutGuard` keeps that exact
+      // bounce when the setting says "off" (or the session is blocked) and otherwise lets the
+      // flow's own `guestAllowed`/`guestGate` checks decide — see the note on the route below.
       GetPage<dynamic>(
         name: OmRoutes.cart,
         page: () => const CartView(),
@@ -92,7 +97,7 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         name: OmRoutes.checkout,
         page: () => const CheckoutView(),
         bindings: <Bindings>[StorefrontBinding(), CheckoutBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[CheckoutGuard()],
       ),
       GetPage<dynamic>(
         name: '${OmRoutes.orderSuccess}/:orderId',
@@ -106,13 +111,13 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         name: OmRoutes.login,
         page: () => const LoginView(),
         bindings: <Bindings>[StorefrontBinding(), LoginBinding()],
-        middleWare: <GetMiddleware>[SignedOutOnlyGuard()],
+        middlewares: <GetMiddleware>[SignedOutOnlyGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.register,
         page: () => const RegisterView(),
         bindings: <Bindings>[StorefrontBinding(), RegisterBinding()],
-        middleWare: <GetMiddleware>[SignedOutOnlyGuard()],
+        middlewares: <GetMiddleware>[SignedOutOnlyGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.forgotPassword,
@@ -130,55 +135,55 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         name: OmRoutes.account,
         page: () => const AccountHomeView(),
         bindings: <Bindings>[StorefrontBinding(), AccountHomeBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: StorefrontRouteNames.accountProfile,
         page: () => const ProfileView(),
         bindings: <Bindings>[StorefrontBinding(), ProfileBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountOrders,
         page: () => const OrdersView(),
         bindings: <Bindings>[StorefrontBinding(), OrderListBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: '${OmRoutes.accountOrder}/:orderId',
         page: () => const AccountOrderView(),
         bindings: <Bindings>[StorefrontBinding(), AccountOrderBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountAddresses,
         page: () => const AddressesView(),
         bindings: <Bindings>[StorefrontBinding(), AddressBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountWishlist,
         page: () => const WishlistView(),
         bindings: <Bindings>[StorefrontBinding(), WishlistBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountNotifications,
         page: () => const NotificationsView(),
         bindings: <Bindings>[StorefrontBinding(), NotificationBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountSupport,
         page: () => const SupportView(),
         bindings: <Bindings>[StorefrontBinding(), SupportBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.accountSettings,
         page: () => const AccountSettingsView(),
         bindings: <Bindings>[StorefrontBinding(), AccountSettingsBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
 
       // Reviews. Only the buyer's own review for one product; the verified-purchase flag is the
@@ -187,7 +192,7 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         name: '${OmRoutes.reviewCompose}/:productId',
         page: () => const ReviewComposeView(),
         bindings: <Bindings>[StorefrontBinding(), ReviewComposeBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
 
       // Wholesale. `wholesaleApply` takes `AuthGuard`, not `WholesaleGuard`: that guard sends every
@@ -196,19 +201,19 @@ List<GetPage<dynamic>> get storefrontRoutes => <GetPage<dynamic>>[
         name: OmRoutes.wholesaleApply,
         page: () => const WholesaleApplyView(),
         bindings: <Bindings>[StorefrontBinding(), WholesaleApplyBinding()],
-        middleWare: <GetMiddleware>[AuthGuard()],
+        middlewares: <GetMiddleware>[AuthGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.wholesaleBulkOrder,
         page: () => const BulkOrderView(),
         bindings: <Bindings>[StorefrontBinding(), BulkOrderBinding()],
-        middleWare: <GetMiddleware>[WholesaleGuard()],
+        middlewares: <GetMiddleware>[WholesaleGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.wholesaleQuotation,
         page: () => const WholesaleQuotationView(),
         bindings: <Bindings>[StorefrontBinding(), WholesaleQuotationBinding()],
-        middleWare: <GetMiddleware>[WholesaleGuard()],
+        middlewares: <GetMiddleware>[WholesaleGuard()],
       ),
 
       // Editorial pages. No page controller: the copy comes from `SettingsStore`, which reports an

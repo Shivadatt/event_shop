@@ -39,8 +39,12 @@ class _OmMediaOrphanPanelState extends State<OmMediaOrphanPanel> {
     return Get.isRegistered<MediaRepository>() ? Get.find<MediaRepository>() : null;
   }
 
+  /// Bucket cleanup is a port on the Supabase implementation only, so a repository that is not one
+  /// (the stub, or a Firestore-only build) reports no cleanup rather than failing. The local is
+  /// `Object?` deliberately: `is` refines `Object?` to `MediaOrphanControl`, whereas testing a
+  /// `MediaRepository?` against an unrelated interface leaves the static type unchanged.
   MediaOrphanControl? get _control {
-    final repository = _repository;
+    final Object? repository = _repository;
     return repository is MediaOrphanControl ? repository : null;
   }
 
@@ -142,12 +146,15 @@ class _OmMediaOrphanPanelState extends State<OmMediaOrphanPanel> {
 
     final scan = _scan;
     final candidates = scan?.candidates ?? const <String>[];
+    // Read once, before the widget list: a list literal cannot contain a declaration. This is the
+    // scan's explanation of why deletion is off the table, when it is.
+    final scanNote = control.orphanScanNote;
 
     return OmCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          OmSectionHeader(
+          const OmSectionHeader(
             title: 'Bucket cleanup',
             subtitle: 'Compares the bucket contents against the media_objects ledger and every '
                 'document that can hold an image. Reporting only — nothing is deleted until you '
@@ -179,7 +186,7 @@ class _OmMediaOrphanPanelState extends State<OmMediaOrphanPanel> {
                 ),
             ],
           ),
-          if (scan == null && !(_error ?? '').isEmpty) ...<Widget>[
+          if (scan == null && (_error ?? '').isNotEmpty) ...<Widget>[
             const SizedBox(height: OmSpacing.md),
             Text(_error!, style: styles.muted.copyWith(color: OmColors.danger)),
           ],
@@ -189,7 +196,7 @@ class _OmMediaOrphanPanelState extends State<OmMediaOrphanPanel> {
               spacing: OmSpacing.sm,
               runSpacing: OmSpacing.sm,
               children: <Widget>[
-                OmBadge(label: '${scan.objects.length} in bucket', tone: OmTone.neutral),
+                OmBadge(label: '${scan.objects.length} in bucket'),
                 OmBadge(label: '${scan.referencedPaths.length} referenced', tone: OmTone.info),
                 OmBadge(
                   label: '${candidates.length} unreferenced',
@@ -255,13 +262,12 @@ class _OmMediaOrphanPanelState extends State<OmMediaOrphanPanel> {
                 ),
               ),
             ],
-            final note = control.orphanScanNote;
-            if (note != null) ...<Widget>[
+            if (scanNote != null) ...<Widget>[
               const SizedBox(height: OmSpacing.sm),
-              Text(note, style: styles.muted.copyWith(color: OmColors.warning)),
+              Text(scanNote, style: styles.muted.copyWith(color: OmColors.warning)),
             ],
           ],
-          if (!(_result ?? '').isEmpty) ...<Widget>[
+          if ((_result ?? '').isNotEmpty) ...<Widget>[
             const SizedBox(height: OmSpacing.md),
             Text(_result!, style: styles.muted),
           ],

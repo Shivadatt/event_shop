@@ -29,7 +29,7 @@ List<Product> _seed() => <Product>[
         categoryId: 'cat-balloons',
         categorySlug: 'balloons',
         retailPricePaise: 30000,
-        stockQty: 0,
+        // `stockQty` is left at its 0 default — this is the sold-out line `inStockOnly` hides.
         status: ProductStatus.active,
         isBestSeller: true,
         soldCount: 50,
@@ -53,7 +53,7 @@ List<Product> _seed() => <Product>[
         slug: 'draft-thing',
         sku: 'SKU-D',
         retailPricePaise: 990000,
-        status: ProductStatus.draft,
+        // `status` is left at its draft default — this is the row a storefront search must drop.
       ),
     ];
 

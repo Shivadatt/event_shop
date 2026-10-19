@@ -381,6 +381,10 @@ final class Order {
 
   factory Order.fromMap(Map<String, dynamic> m, {String? id}) {
     final shippingMap = readMap(m, 'shipping');
+    // Totals live in a nested `totals` map — that is what `toWriteMap()` and the Cloud Function
+    // both write. The top-level fallback only exists for rows written before that shape settled.
+    final totalsMap = readMap(m, 'totals');
+    final totalsSource = totalsMap.isEmpty ? m : totalsMap;
     return Order(
       id: id ?? readStringOrEmpty(m, 'id'),
       orderNumber: readStringOrEmpty(m, 'orderNumber'),
@@ -404,7 +408,7 @@ final class Order {
       invoiceNumber: readStringOrEmpty(m, 'invoiceNumber'),
       source: readStringOrEmpty(m, 'source').isEmpty ? 'web' : readStringOrEmpty(m, 'source'),
       items: readMapList(m, 'items').map(OrderItem.fromMap).toList(growable: false),
-      totals: OrderTotals.fromMap(m),
+      totals: OrderTotals.fromMap(totalsSource),
       createdAt: readDate(m, 'createdAt'),
       updatedAt: readDate(m, 'updatedAt'),
     );

@@ -1,5 +1,5 @@
 name: om_events
-description: "A new Flutter project."
+description: "OM Events And Decorators - wholesale and party supplies storefront with a separate admin panel."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -45,6 +45,10 @@ dependencies:
   file_picker: ^13.1.0
   fl_chart: ^1.2.0
   csv: ^8.0.0
+  # WhatsApp / map / share links, and `window.print()` for invoices. Both were imported by the
+  # storefront without being declared, which only worked by accident through transitive resolution.
+  url_launcher: ^6.3.3
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

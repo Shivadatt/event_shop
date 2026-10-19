@@ -6,6 +6,11 @@
 // Application Default Credentials; see docs/backend-setup.md. No key is embedded in source.
 
 const admin = require('firebase-admin');
+// `FieldValue`/`Timestamp` come from the `firebase-admin/firestore` subpath, not off `admin.firestore`.
+// The Functions emulator proxies `firebase-admin` and returns `admin.firestore` already `.bind()`ed,
+// and a bound function keeps only `length`/`name` — so inside a running handler
+// `FieldValue` is `undefined` while `admin.firestore()` still works.
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
 // The Functions runtime initialises the Admin SDK from ADC; do not hardcode a project id.
 admin.initializeApp();
@@ -36,7 +41,7 @@ function toInt(value, fallback = 0) {
 // nanoid-style id: short, url-safe, sortable-enough. Document ids are opaque.
 function newId() {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const bytes = admin.firestore.Timestamp.now().nanoseconds;
+  const bytes = Timestamp.now().nanoseconds;
   let out = '';
   let seed = Date.now() ^ bytes;
   for (let i = 0; i < 21; i += 1) {
@@ -122,7 +127,7 @@ async function writeAudit(handle, entry) {
     summary: entry.summary || '',
     before: entry.before || {},
     after: entry.after || {},
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   };
   if (handle && typeof handle.set === 'function') {
     handle.set(ref, record);
@@ -202,6 +207,8 @@ module.exports = {
   admin,
   db,
   auth,
+  FieldValue,
+  Timestamp,
   REGION,
   PRICE_EPSILON_PAISE,
   ADMIN_ROLES,

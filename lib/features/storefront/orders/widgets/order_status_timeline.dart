@@ -119,7 +119,7 @@ final class OrderStatusTimeline extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        OmText('Order progress', variant: OmTextVariant.h3),
+        const OmText('Order progress', variant: OmTextVariant.h3),
         const SizedBox(height: OmSpacing.md),
         for (final status in steps)
           _TimelineRow(

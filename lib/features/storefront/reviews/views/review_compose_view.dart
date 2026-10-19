@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/widgets/media/om_image_picker_field.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
@@ -226,8 +227,8 @@ class _ComposeForm extends StatelessWidget {
               ],
             ),
             if (!controller.canSubmit && !controller.busy.value)
-              Padding(
-                padding: const EdgeInsets.only(top: OmSpacing.sm),
+              const Padding(
+                padding: EdgeInsets.only(top: OmSpacing.sm),
                 child: OmText('Pick a star rating to enable the submit button.',
                     variant: OmTextVariant.caption),
               ),
@@ -241,7 +242,7 @@ class _ComposeForm extends StatelessWidget {
               ),
             ],
             const SizedBox(height: OmSpacing.md),
-            OmText(
+            const OmText(
               'Reviews are read by the store before they go public, and the purchase check is '
               'theirs to make — this page only records what you write.',
               variant: OmTextVariant.caption,
@@ -277,7 +278,7 @@ class _SubmittedCard extends StatelessWidget {
           const SizedBox(height: OmSpacing.sm),
           Row(
             children: <Widget>[
-              if (review != null) OmStarDisplay(rating: review!.rating, readOnly: true),
+              if (review != null) OmStarDisplay(rating: review!.rating),
               const SizedBox(width: OmSpacing.sm),
               if (review?.isVerifiedPurchase ?? false)
                 const OmBadge(

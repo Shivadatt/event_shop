@@ -6,7 +6,6 @@ import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_media_image.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
-import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/product.dart';
@@ -162,7 +161,6 @@ class _ProductsViewState extends State<ProductsView> {
                       isLoading: controller.isLoading.value,
                       onLoadMore: controller.loadMore,
                       onRefresh: controller.refresh,
-                      totalEstimate: null,
                     ),
                   ),
                 ],

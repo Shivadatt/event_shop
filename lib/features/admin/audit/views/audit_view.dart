@@ -59,14 +59,14 @@ final class AuditView extends StatelessWidget {
                     OmDropdown<String>(
                       label: 'Entity',
                       value: controller.entityFilter.value ?? '',
-                      items: <String>['', ...AuditController.knownEntities],
+                      items: const <String>['', ...AuditController.knownEntities],
                       itemLabel: (v) => v.isEmpty ? 'All entities' : v,
                       onChanged: controller.applyEntity,
                     ),
                     OmDropdown<String>(
                       label: 'Action',
                       value: controller.actionFilter.value ?? '',
-                      items: <String>['', ...AuditController.knownActions],
+                      items: const <String>['', ...AuditController.knownActions],
                       itemLabel: (v) => v.isEmpty ? 'All actions' : v,
                       onChanged: controller.applyAction,
                     ),
@@ -83,7 +83,6 @@ final class AuditView extends StatelessWidget {
                 const OmAdminNotice(
                   message: 'Actor and date-range filters are not offered: the read path only '
                       'accepts entity and action. See the NEEDS OWNER note in AuditController.',
-                  tone: OmTone.info,
                 ),
                 const SizedBox(height: OmSpacing.lg),
                 OmAdminPanel<AuditLog>(
@@ -136,7 +135,7 @@ class _AuditCard extends StatelessWidget {
         badges: <Widget>[
           OmBadge(label: entry.entityType, tone: OmTone.info, dense: true),
           if (entry.actorRole.isNotEmpty)
-            OmBadge(label: entry.actorRole, tone: OmTone.neutral, dense: true),
+            OmBadge(label: entry.actorRole, dense: true),
         ],
         lines: <String>[
           AdminFormat.dateTime(entry.createdAt),

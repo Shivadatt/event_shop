@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_price.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
-import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/features/storefront/account/account_order_controller.dart';
-import 'package:om_events/features/storefront/account/widgets/account_page.dart';
 import 'package:om_events/features/storefront/common/store_shell.dart';
 import 'package:om_events/features/storefront/orders/widgets/order_details_cards.dart';
 import 'package:om_events/features/storefront/orders/widgets/order_status_timeline.dart';
@@ -51,7 +50,7 @@ final class OrderSuccessView extends GetView<OrderSuccessController> {
                   ],
                 ),
                 const SizedBox(height: OmSpacing.sm),
-                OmText(
+                const OmText(
                   'Thank you. The store has recorded this order; packing, dispatch and delivery '
                   'updates follow on this page.',
                   variant: OmTextVariant.muted,
@@ -71,7 +70,7 @@ final class OrderSuccessView extends GetView<OrderSuccessController> {
                 ],
                 if (receipt != null) ...<Widget>[
                   const SizedBox(height: OmSpacing.lg),
-                  OmText(
+                  const OmText(
                     'Amount confirmed by the store',
                     variant: OmTextVariant.label,
                   ),
@@ -141,7 +140,7 @@ final class OrderSuccessView extends GetView<OrderSuccessController> {
                     children: <Widget>[
                       Row(
                         children: <Widget>[
-                          Expanded(child: OmText('Status', variant: OmTextVariant.h3)),
+                          const Expanded(child: OmText('Status', variant: OmTextVariant.h3)),
                           OrderStatusChip(status: order.status),
                         ],
                       ),
@@ -197,7 +196,7 @@ class _ReceiptTotals extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           children: <Widget>[
-            Expanded(child: OmText(label, variant: OmTextVariant.body)),
+            Expanded(child: OmText(label)),
             OmMoneyText(paise),
           ],
         ),

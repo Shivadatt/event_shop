@@ -152,17 +152,16 @@ class _Description extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        OmText('About this product', variant: OmTextVariant.h3),
+        const OmText('About this product', variant: OmTextVariant.h3),
         const SizedBox(height: OmSpacing.sm),
         if (product.description.isEmpty)
-          OmText(
+          const OmText(
             'The store has not written a description for this product yet.',
             variant: OmTextVariant.muted,
           )
         else
           OmText(
             product.description,
-            variant: OmTextVariant.body,
             maxLines: 40,
             overflow: TextOverflow.visible,
             selectable: true,
@@ -174,7 +173,7 @@ class _Description extends StatelessWidget {
             runSpacing: OmSpacing.sm,
             children: <Widget>[
               for (final tag in product.tags)
-                OmBadge(label: tag, tone: OmTone.neutral, dense: true),
+                OmBadge(label: tag, dense: true),
             ],
           ),
         ],

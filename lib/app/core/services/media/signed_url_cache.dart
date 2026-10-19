@@ -2,6 +2,13 @@ import 'dart:async';
 
 import 'package:om_events/app/core/services/media/media_limits.dart';
 
+// SignedUrlCache's constructor takes `signer`/`ttl` and assigns `_signer`/`_ttl` in its initialiser
+// list. The initializing-formal form (`this._signer`) silences this lint on the pinned SDK but is a
+// hard error on Dart 3.10, where a named parameter may not start with an underscore — and this
+// package still has to build there. Scoped to this file rather than inline because a `// ignore:`
+// only covers the next line when it sits alone, and the initialiser list leaves no such line.
+// ignore_for_file: prefer_initializing_formals
+
 /// A signed URL plus the instant it stops being usable.
 final class SignedUrlEntry {
   const SignedUrlEntry({required this.url, required this.expiresAt});
@@ -68,7 +75,7 @@ final class SignedUrlCache {
 
   Future<String> urlFor(String storagePath, {Duration? ttl}) async {
     if (storagePath.isEmpty) {
-      throw const StateError('SignedUrlCache requires a non-empty storagePath.');
+      throw StateError('SignedUrlCache requires a non-empty storagePath.');
     }
     final effectiveTtl = ttl ?? _ttl;
     final cached = _entries[storagePath];
@@ -85,7 +92,9 @@ final class SignedUrlCache {
     try {
       return await request;
     } finally {
-      _inFlight.remove(storagePath);
+      // The map's value is the Future itself, so `remove` hands one back; this entry's result is
+      // already awaited above, so the returned handle is deliberately dropped rather than awaited.
+      unawaited(_inFlight.remove(storagePath));
     }
   }
 

@@ -44,7 +44,10 @@ abstract final class FirebaseBackend {
     Map<String, Object?> argument = const <String, Object?>{},
   ]) async {
     try {
-      final result = await functions.httpsCallable(name).call(argument);
+      // `Object?`, never the default: an un-parameterised `call()` infers `dynamic`, and a
+      // silently-dynamic payload is exactly how a client-trusting bug (read a price, trust a role)
+      // gets reintroduced one field access later. The defensive checks below are the contract.
+      final result = await functions.httpsCallable(name).call<Object?>(argument);
       final data = result.data;
       if (data is Map) return data.cast<String, dynamic>();
       return <String, dynamic>{'result': data};
@@ -56,35 +59,37 @@ abstract final class FirebaseBackend {
   }
 
   static OmFailure mapFirebaseError(FirebaseException error) {
+    final message = error.message ?? 'Firestore request failed.';
     return switch (error.code) {
-      'permission-denied' => PermissionFailure(error.message),
+      'permission-denied' => PermissionFailure(message),
       'unauthenticated' => const AuthFailure(),
       'not-found' => const NotFoundFailure(),
       'cancelled' => const NetworkFailure(),
       'unavailable' || 'network-request-failed' => const NetworkFailure(),
       'resource-exhausted' => const ServerFailure(),
-      _ => ServerFailure(error.message ?? 'Firestore request failed.'),
+      _ => ServerFailure(message),
     };
   }
 
   static OmFailure mapFunctionsError(FirebaseFunctionsException error) {
+    final message = error.message ?? 'The request could not be completed.';
     final details = error.details is Map
         ? (error.details as Map).cast<String, Object?>()
         : const <String, Object?>{};
     return switch (error.code) {
-      'permission-denied' => PermissionFailure(error.message),
+      'permission-denied' => PermissionFailure(message),
       'unauthenticated' => const AuthFailure(),
-      'not-found' => NotFoundFailure(error.message),
-      'invalid-argument' => ValidationFailure(error.message),
+      'not-found' => NotFoundFailure(message),
+      'invalid-argument' => ValidationFailure(message),
       'failed-precondition' => ConflictFailure(
-          message: error.message,
+          message: message,
           code: details['code'] as String? ?? 'conflict',
           details: details,
         ),
-      'out-of-range' || 'already-exists' => ConflictFailure(message: error.message),
+      'out-of-range' || 'already-exists' => ConflictFailure(message: message),
       'unavailable' || 'deadline-exceeded' => const NetworkFailure(),
       'resource-exhausted' => const ServerFailure(),
-      _ => ServerFailure(error.message),
+      _ => ServerFailure(message),
     };
   }
 }

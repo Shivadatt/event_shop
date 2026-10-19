@@ -140,7 +140,7 @@ final class ProductBuyBox extends StatelessWidget {
             ],
           ),
           const SizedBox(height: OmSpacing.md),
-          OmText(
+          const OmText(
             'Add to cart to see the running total. The final payable amount and stock are '
             'confirmed by the store at checkout.',
             variant: OmTextVariant.caption,
@@ -233,7 +233,7 @@ class _VariantPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        OmText('Options', variant: OmTextVariant.bodyStrong),
+        const OmText('Options', variant: OmTextVariant.bodyStrong),
         const SizedBox(height: OmSpacing.sm),
         Wrap(
           spacing: OmSpacing.sm,

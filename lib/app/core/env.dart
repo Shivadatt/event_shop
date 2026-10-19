@@ -4,9 +4,39 @@
 class Env {
   const Env._();
 
-  static const String firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
-  static const String firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  static const String firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID');
+  static const String _firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  static const String _firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  static const String _firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID');
+
+  /// Local-only emulator mode: `--dart-define=OM_USE_EMULATORS=true` points the SDK at the Firebase
+  /// Local Emulator Suite on 127.0.0.1 so the store can be run and demoed with no cloud project and
+  /// no real credentials. Off by default, and the placeholders below are deliberately worded so they
+  /// cannot be mistaken for a key — they are only ever sent to localhost.
+  static const bool useEmulators = bool.fromEnvironment('OM_USE_EMULATORS');
+  static const String localEmulatorProjectId = 'demo-om-events';
+
+  static String get firebaseApiKey => useEmulators && _firebaseApiKey.isEmpty
+      ? 'localhost-emulator-not-a-real-key'
+      : _firebaseApiKey;
+
+  static String get firebaseProjectId => useEmulators && _firebaseProjectId.isEmpty
+      ? localEmulatorProjectId
+      : _firebaseProjectId;
+
+  static String get firebaseAppId => useEmulators && _firebaseAppId.isEmpty
+      ? 'OM-LOCAL-EMULATOR-APP'
+      : _firebaseAppId;
+
+  /// Emulator endpoints. These match the `emulators` block in firebase.json, so `firebase
+  /// emulators:start` needs no extra flags. Overridable for a machine where a port is taken.
+  static const String emulatorHost =
+      String.fromEnvironment('OM_EMULATOR_HOST', defaultValue: 'localhost');
+  static const int authEmulatorPort =
+      int.fromEnvironment('OM_AUTH_EMULATOR_PORT', defaultValue: 9099);
+  static const int firestoreEmulatorPort =
+      int.fromEnvironment('OM_FIRESTORE_EMULATOR_PORT', defaultValue: 8080);
+  static const int functionsEmulatorPort =
+      int.fromEnvironment('OM_FUNCTIONS_EMULATOR_PORT', defaultValue: 5001);
   static const String firebaseAuthDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
   static const String firebaseStorageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
   static const String firebaseMessagingSenderId =

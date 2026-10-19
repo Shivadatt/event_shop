@@ -26,9 +26,8 @@ final class PricingController extends AdminController {
 
   final RxList<CustomerPriceOverride> overrides = <CustomerPriceOverride>[].obs;
 
-  /// The repository has no customer-override listing method, so existing overrides cannot be read
-  /// back; the panel can only record new ones and delete by a known id. See the NEEDS OWNER note on
-  /// [loadOverrides].
+  /// True while the negotiated-price list could not be read back. The screen then says so instead
+  /// of showing an empty list that would look like "no overrides exist".
   final RxBool overridesListUnavailable = true.obs;
 
   bool get hasSelection => selected.value != null;
@@ -43,7 +42,7 @@ final class PricingController extends AdminController {
   Future<void> loadProducts() async {
     final page = await guard<PagedResult<Product>>(
       () => _admin.listProducts(
-        query: const CatalogQuery(status: ProductStatus.active),
+        query: const CatalogQuery(),
         pageSize: 100,
       ),
     );
@@ -98,14 +97,34 @@ final class PricingController extends AdminController {
 
   // ----------------------------------------------------------- customer overrides
 
-  Future<void> loadOverrides() async {
-    // NEEDS OWNER(AdminRepository): Future<List<CustomerPriceOverride>> listCustomerPrices(
-    //   {String? uid, String? productId, bool includeExpired}).
-    // Without it this screen cannot show the negotiated prices that already exist; it can only add
-    // new ones and delete by id, so it says so instead of pretending the list is complete.
-    overrides.clear();
-    overridesListUnavailable.value = true;
+  Future<void> loadOverrides({String? uid, String? productId}) async {
+    // AGREED with the backend owner (r2 convergence list):
+    // `Future<List<CustomerPriceOverride>> listCustomerPrices({String? productId, String? uid})`.
+    // The read is scoped server-side; nothing here fetches every override and filters it in the
+    // browser, because negotiated prices for other customers must not reach this tab at all.
+    _listScopeUid = uid;
+    _listScopeProductId = productId;
+    final rows = await guard<List<CustomerPriceOverride>>(
+      () => _admin.listCustomerPrices(uid: uid, productId: productId),
+    );
+    if (rows == null) {
+      overrides.clear();
+      overridesListUnavailable.value = true;
+      return;
+    }
+    overridesListUnavailable.value = false;
+    overrides.assignAll(rows);
   }
+
+  /// The scope the last list read used, so a reload after a write shows the same rows it showed
+  /// before rather than silently widening to every customer's negotiated prices.
+  String? _listScopeUid;
+  String? _listScopeProductId;
+
+  /// Re-reads the list at the scope it was last shown at. This is how the screen learns the
+  /// server-minted id of a row it just saved.
+  Future<void> reloadOverrides() =>
+      loadOverrides(uid: _listScopeUid, productId: _listScopeProductId);
 
   Future<bool> addOverride({
     required String uid,
@@ -125,8 +144,13 @@ final class PricingController extends AdminController {
       announce('The override unit price must be above zero paise.', error: true);
       return false;
     }
+    // An empty id means "the server mints the document key". `adminCustomerPriceSave` does
+    // `data.id ? String(data.id) : newId()`, and an id supplied here is treated as an *update* —
+    // the function now rejects an id belonging to a different customer/product pair. So the client
+    // must never build a key: a fabricated `${uid}__${productId}` would either create a second row
+    // for the same pair at another price, or aim at a row that does not exist.
     final override = CustomerPriceOverride(
-      id: _overrideId(cleanUid, cleanProduct, variantId),
+      id: '',
       uid: cleanUid,
       productId: cleanProduct,
       variantId: (variantId == null || variantId.trim().isEmpty) ? null : variantId.trim(),
@@ -140,7 +164,23 @@ final class PricingController extends AdminController {
       announce(error?.message ?? 'The override could not be saved.', error: true);
       return false;
     }
-    overrides.add(override);
+    // The saved row's real key is only ever known to the server, and `saveCustomerPrice` is typed
+    // `Future<void>` so the callable's `{ id, ...doc }` response is dropped at the repository.
+    // Therefore the list read IS the identity source: every later edit and delete on this screen is
+    // driven from the id `listCustomerPrices` returned.
+    await reloadOverrides();
+    if (overridesListUnavailable.value) {
+      // The write landed but the read did not, so this screen cannot know the key. Keeping a local
+      // row with a blank id would be a trap — it could never be deleted — so the rows stay hidden
+      // and the operator is told to reload.
+      announce(
+        'Override saved, but the stored list could not be read back, so this screen cannot show '
+        'its server id. Use "Reload override list" to pick the row up before editing or deleting '
+        'it.',
+        error: true,
+      );
+      return true;
+    }
     announce(
       'Override recorded. Only the backend applies it at checkout, after re-checking your role — '
       'a value entered here does not itself change any live price.',
@@ -148,23 +188,31 @@ final class PricingController extends AdminController {
     return true;
   }
 
+  /// Deletes by the id the server returned from `listCustomerPrices`, never a locally built key.
   Future<bool> deleteOverride(String overrideId) async {
-    if (overrideId.trim().isEmpty) return false;
-    final ok = await mutateVoid(() => _admin.deleteCustomerPrice(overrideId.trim()));
-    if (!ok) {
-      final error = failure.value;
-      announce(error?.message ?? 'The override could not be removed.', error: true);
+    final id = overrideId.trim();
+    if (id.isEmpty) {
+      announce(
+        'This row has no server id, so it cannot be deleted. Reload the override list first.',
+        error: true,
+      );
       return false;
     }
-    overrides.removeWhere((o) => o.id == overrideId.trim());
-    announce('Override removed.', error: false);
+    final ok = await mutateVoid(() => _admin.deleteCustomerPrice(id));
+    if (!ok) {
+      // `adminCustomerPriceDelete` now throws `not-found` instead of silently succeeding on a
+      // missing row, so a message here always means the price may still be applying.
+      final error = failure.value;
+      announce(
+        error?.message ?? 'The override could not be removed — the backend did not confirm it.',
+        error: true,
+      );
+      return false;
+    }
+    // Re-read rather than dropping the row locally: the list is the only place the ids come from,
+    // and a row the server refused to delete must not disappear from the screen.
+    await reloadOverrides();
+    announce('Override removed.');
     return true;
   }
-
-  /// Document-id convention is server-owned; this mirrors the `${uid}__${product}` shape the write
-  /// path expects. NEEDS OWNER confirms the exact key so an override saved here can be read back.
-  String _overrideId(String uid, String productId, String? variantId) =>
-      variantId == null || variantId.trim().isEmpty
-          ? '${uid}__${productId}'
-          : '${uid}__${productId}__${variantId.trim()}';
 }

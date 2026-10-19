@@ -89,7 +89,7 @@ final class FirestoreAccountRepository
     final batch = Collections.addresses_.firestore.batch();
     for (final doc in all.docs) {
       if (doc.get(field) == true && doc.id != addressId) {
-        batch.update(doc.ref, <String, Object?>{field: false});
+        batch.update(doc.reference, <String, Object?>{field: false});
       }
     }
     batch.set(Collections.address(addressId), <String, Object?>{
@@ -236,7 +236,7 @@ final class FirestoreAccountRepository
     if (snap.docs.isEmpty) return;
     final batch = Collections.notifications_.firestore.batch();
     for (final doc in snap.docs.take(400)) {
-      batch.update(doc.ref, <String, Object?>{'isRead': true});
+      batch.update(doc.reference, <String, Object?>{'isRead': true});
     }
     await batch.commit();
   }

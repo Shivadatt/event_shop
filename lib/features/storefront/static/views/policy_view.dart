@@ -34,7 +34,7 @@ final class PolicyView extends StatelessWidget {
 
     return StaticPage(
       title: title,
-      subtitle: meta == null ? null : meta.$2,
+      subtitle: meta?.$2,
       currentRoute: OmRoutes.forPolicy(kind),
       content: (context, settings) {
         if (settings == null) {

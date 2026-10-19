@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
@@ -15,7 +17,7 @@ final class AccountHomeController extends GetxController {
   Future<void> signOut() async {
     final ok = await tryCall(() => Get.find<AuthRepository>().signOut());
     if (ok) {
-      Get.offAllNamed<dynamic>(OmRoutes.home);
+      unawaited(Get.offAllNamed<dynamic>(OmRoutes.home));
     }
   }
 

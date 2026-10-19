@@ -12,10 +12,10 @@ import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/product.dart';
 import 'package:om_events/features/admin/dashboard/admin_scaffold.dart';
+import 'package:om_events/features/admin/products/products_controller.dart';
 import 'package:om_events/features/admin/products/widgets/media_editor.dart';
 import 'package:om_events/features/admin/products/widgets/slab_grid_editor.dart';
 import 'package:om_events/features/admin/products/widgets/variants_editor.dart';
-import 'package:om_events/features/admin/products/products_controller.dart';
 import 'package:om_events/features/admin/shared/admin_widgets.dart';
 
 /// The product create/edit screen.
@@ -79,7 +79,6 @@ class _Form extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final styles = context.omText;
     return OmAdminPage(
       title: controller.isNew ? 'New product' : product.name.isEmpty ? 'Untitled product' : product.name,
       eyebrow: 'Catalogue',
@@ -148,7 +147,7 @@ class _Form extends StatelessWidget {
                       .categories
                       .firstWhereOrNull((c) => c.id == id)
                       ?.name ?? 'Unknown',
-                  onChanged: (id) => controller.setCategory(id),
+                  onChanged: controller.setCategory,
                 ),
                 OmTextField(
                   label: 'Brand',
@@ -236,7 +235,7 @@ class _Form extends StatelessWidget {
                       required: true,
                       initialValue: _rupees(product.retailPricePaise),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (value) => OmValidators.price(value),
+                      validator: OmValidators.price,
                       onChanged: (value) =>
                           controller.setRetailPrice(OmMoney.parseRupeeString(value)),
                     ),
@@ -379,7 +378,7 @@ class _StockMirror extends StatelessWidget {
         subtitle: 'Read from the inventory ledger. Adjust it on the Inventory screen, where the '
             'move is written as a ledger row with a reason.',
         action: 'Re-read',
-        onActionTap: () => controller.reloadStock(),
+        onActionTap: controller.reloadStock,
         child: Obx(() {
           final reported = controller.stockDisplay.value;
           return OmCard(

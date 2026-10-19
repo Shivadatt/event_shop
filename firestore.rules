@@ -97,6 +97,10 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Categories: storefront reads active rows publicly; staff reads all. Every write is
+    // function-only (adminCategorySave / adminCategoryDelete, which use the Admin SDK and so bypass
+    // these rules) — a browser may never create, edit or delete a category, and productCount stays
+    // trigger-owned.
     match /categories/{categoryId} {
       allow read: if resource.data.isActive == true || isStaff();
       allow create, update, delete: if false;

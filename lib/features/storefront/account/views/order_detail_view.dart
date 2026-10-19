@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_price.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
@@ -8,12 +9,10 @@ import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/order.dart';
-import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/features/storefront/account/account_order_controller.dart';
 import 'package:om_events/features/storefront/account/widgets/account_page.dart';
 import 'package:om_events/features/storefront/common/om_dates.dart';
 import 'package:om_events/features/storefront/orders/order_actions.dart';
-import 'package:om_events/features/storefront/orders/widgets/order_card.dart';
 import 'package:om_events/features/storefront/orders/widgets/order_details_cards.dart';
 import 'package:om_events/features/storefront/orders/widgets/order_status_timeline.dart';
 
@@ -75,7 +74,6 @@ final class AccountOrderView extends GetView<AccountOrderController> {
                         label: order.deliveryMode == DeliveryMode.pickup
                             ? 'Store pickup'
                             : 'Courier delivery',
-                        tone: OmTone.neutral,
                         dense: true,
                         icon: Icons.local_shipping_outlined,
                       ),
@@ -95,7 +93,7 @@ final class AccountOrderView extends GetView<AccountOrderController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  OmSectionHeader(title: 'Progress'),
+                  const OmSectionHeader(title: 'Progress'),
                   const SizedBox(height: OmSpacing.sm),
                   OrderStatusTimeline(order: order),
                 ],
@@ -108,19 +106,19 @@ final class AccountOrderView extends GetView<AccountOrderController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  OmSectionHeader(title: 'What you can do'),
+                  const OmSectionHeader(title: 'What you can do'),
                   const SizedBox(height: OmSpacing.sm),
                   OrderActionButtons(order: order, actions: controller),
                   if (order.status == OrderStatus.delivered) ...<Widget>[
                     const SizedBox(height: OmSpacing.md),
-                    OmText('Review an item', variant: OmTextVariant.bodyStrong),
+                    const OmText('Review an item', variant: OmTextVariant.bodyStrong),
                     const SizedBox(height: OmSpacing.sm),
                     for (final item in order.items)
                       Padding(
                         padding: const EdgeInsets.only(bottom: OmSpacing.xs),
                         child: Row(
                           children: <Widget>[
-                            Expanded(child: OmText(item.name, variant: OmTextVariant.body)),
+                            Expanded(child: OmText(item.name)),
                             OmButton(
                               label: 'Write a review',
                               variant: OmButtonVariant.outline,
@@ -176,7 +174,7 @@ final class OrderTotalsPanel extends StatelessWidget {
         const OmDivider(space: OmSpacing.sm),
         Row(
           children: <Widget>[
-            Expanded(child: OmText('Payable', variant: OmTextVariant.h3)),
+            const Expanded(child: OmText('Payable', variant: OmTextVariant.h3)),
             OmMoneyText(totals.grandTotalPaise, style: context.omText.priceLarge),
           ],
         ),
@@ -200,7 +198,7 @@ class _TotalLine extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           children: <Widget>[
-            Expanded(child: OmText(label, variant: OmTextVariant.body)),
+            Expanded(child: OmText(label)),
             money,
           ],
         ),

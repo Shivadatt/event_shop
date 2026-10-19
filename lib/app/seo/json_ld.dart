@@ -149,7 +149,7 @@ abstract final class OmJsonLd {
           'bestRating': 5,
           'worstRating': 1,
         },
-      if (categoryPath != null) 'category': categoryPath,
+      'category': ?categoryPath,
       if (properties.isNotEmpty) 'additionalProperty': properties,
     };
   }

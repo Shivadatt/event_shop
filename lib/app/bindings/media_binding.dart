@@ -1,8 +1,10 @@
 import 'package:get/get.dart';
 import 'package:om_events/app/core/env.dart';
 import 'package:om_events/app/core/services/media/media_config.dart';
+import 'package:om_events/app/core/services/media/media_object_ledger.dart';
 import 'package:om_events/data/models/media_ref.dart';
 import 'package:om_events/data/models/product.dart';
+import 'package:om_events/data/query.dart';
 import 'package:om_events/data/repositories/media_repository.dart';
 import 'package:om_events/data/repositories/supabase/supabase_media_repository.dart';
 
@@ -74,6 +76,18 @@ final class UnconfiguredMediaRepository implements MediaRepository {
 
   @override
   Future<OrphanScan> scanOrphans() async => _unavailable('scan the media bucket');
+
+  /// No ledger rows can be read here, so this reports the same explanation as every other method
+  /// rather than an empty page that would look like "the media library is empty".
+  @override
+  Future<PagedResult<MediaObjectRecord>> listMedia({
+    String? kind,
+    MediaObjectState? state,
+    bool missingAltOnly = false,
+    int pageSize = 24,
+    String? cursor,
+  }) async =>
+      _unavailable('list the media library');
 
   @override
   Future<String> signedUrl(

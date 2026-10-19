@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/session_store.dart';
@@ -203,7 +205,7 @@ final class CartController extends GetxController {
     if (clamped != requested) {
       final violation = row.price.granularity.violationFor(requested);
       if (violation != null) {
-        Get.snackbar('Quantity adjusted', violation, snackDuration: const Duration(seconds: 3));
+        Get.snackbar('Quantity adjusted', violation);
       }
     }
     _cart.setQty(row.line.key, clamped);
@@ -221,12 +223,12 @@ final class CartController extends GetxController {
     }
     final session = Get.find<SessionStore>();
     if (!session.isSignedIn) {
-      Get.toNamed<dynamic>(
+      unawaited(Get.toNamed<dynamic>(
         OmRoutes.login,
         parameters: <String, String>{
           OmRouteArgs.returnUrl: Uri.encodeComponent(OmRoutes.cart),
         },
-      );
+      ));
       return;
     }
     final saved = await safeCall<bool>(
@@ -305,7 +307,7 @@ final class CartController extends GetxController {
   void openCheckout() {
     if (isEmpty) {
       Get.snackbar('Cart is empty', 'Add something before checking out.',
-          snackDuration: const Duration(seconds: 2));
+          duration: const Duration(seconds: 2));
       return;
     }
     Get.toNamed<dynamic>(OmRoutes.checkout);

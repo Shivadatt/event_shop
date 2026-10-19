@@ -284,7 +284,7 @@ class _TotalsCard extends StatelessWidget {
               _TotalRow(label: 'Shipping', value: order.totals.shippingPaise),
               _TotalRow(label: 'Tax / GST', value: order.totals.taxPaise),
               _TotalRow(label: 'Rounding', value: order.totals.roundingPaise),
-              const OmDivider(space: OmSpacing.sm, indent: 0),
+              const OmDivider(space: OmSpacing.sm),
               _TotalRow(
                 label: 'Grand total',
                 value: order.totals.grandTotalPaise,
@@ -448,7 +448,6 @@ class _NotesCard extends StatelessWidget {
                 'so adding one here would mean inventing a repository method. Use the transition '
                 'note below — it is what lands in the audit log.',
                 variant: OmTextVariant.caption,
-                maxLines: null,
               ),
             ],
           ),
@@ -665,7 +664,7 @@ class _PaymentCardState extends State<_PaymentCard> {
       transactionReference: _reference.text.trim().isEmpty ? null : _reference.text.trim(),
       isCod: _isCod,
     );
-    if (ok && mounted) setState(() => _reference.clear());
+    if (ok && mounted) setState(_reference.clear);
   }
 
   @override
@@ -680,7 +679,6 @@ class _PaymentCardState extends State<_PaymentCard> {
                 message: 'Current state: ${paymentStatusLabel(widget.order.paymentStatus)}. '
                     'Recorded paid: ${OmMoney.format(widget.order.totals.paidPaise)}. The stored '
                     'amount is set by the server, not by this form.',
-                tone: OmTone.info,
               ),
               const SizedBox(height: OmSpacing.md),
               if (!widget.controller.canMarkPayment)

@@ -56,7 +56,7 @@ class _FaqList extends StatelessWidget {
             child: _FaqTile(entry: entry),
           ),
         const SizedBox(height: OmSpacing.sm),
-        OmText(
+        const OmText(
           'Nothing answered it? The support desk keeps a written thread on your account, which is '
           'also what the team uses to turn a common question into a new entry here.',
           variant: OmTextVariant.caption,

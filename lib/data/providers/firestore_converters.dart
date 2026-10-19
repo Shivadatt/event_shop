@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:om_events/data/models/address.dart';
 import 'package:om_events/data/models/audit_log.dart';
 import 'package:om_events/data/models/category.dart';

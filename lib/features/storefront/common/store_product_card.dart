@@ -61,7 +61,6 @@ final class StoreProductCard extends StatelessWidget {
                               ? 'Remove ${product.name} from wishlist'
                               : 'Save ${product.name} to wishlist',
                           selected: inWishlist,
-                          size: 40,
                           onPressed: onWishlistToggle,
                         ),
                       ),
@@ -81,7 +80,7 @@ final class StoreProductCard extends StatelessWidget {
                           if (product.isNewArrival)
                             const OmBadge(label: 'New', tone: OmTone.info, dense: true),
                           if (product.isWholesaleOnly)
-                            const OmBadge(label: 'Wholesale', tone: OmTone.neutral, dense: true),
+                            const OmBadge(label: 'Wholesale', dense: true),
                         ],
                       ),
                     ),
@@ -100,12 +99,12 @@ final class StoreProductCard extends StatelessWidget {
                     ],
                     const SizedBox(height: OmSpacing.sm),
                     if (line.hasError)
-                      OmText('Price on request', variant: OmTextVariant.caption)
+                      const OmText('Price on request', variant: OmTextVariant.caption)
                     else
                       OmPriceTag(resolution: line.resolution, compact: true, showStrikeThrough: false),
                     if (product.hasQuantitySlabs && !line.hasError)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
                         child: OmText(
                           'Bulk discounts available',
                           variant: OmTextVariant.caption,
@@ -116,7 +115,7 @@ final class StoreProductCard extends StatelessWidget {
                       const SizedBox(height: OmSpacing.xs),
                       Row(
                         children: <Widget>[
-                          Icon(Icons.star, size: 14, color: OmColors.gold),
+                          const Icon(Icons.star, size: 14, color: OmColors.gold),
                           const SizedBox(width: 2),
                           OmText(
                             '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount})',

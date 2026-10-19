@@ -128,10 +128,10 @@ final class CallableMediaOptimiseGateway implements MediaOptimiseGateway {
   Future<MediaOptimiseResult> optimise(MediaOptimiseRequest request) async {
     try {
       final response =
-          await AppBootstrap.functions.httpsCallable(_functionName).call(request.toMap());
+          await AppBootstrap.functions.httpsCallable(_functionName).call<Object?>(request.toMap());
       final Object? data = response.data;
       if (data is! Map) {
-        throw MediaFailure('The media optimisation step returned an unreadable result.');
+        throw const MediaFailure('The media optimisation step returned an unreadable result.');
       }
       final map = Map<Object?, Object?>.from(data);
       final path = map['finalPath'];
@@ -148,7 +148,7 @@ final class CallableMediaOptimiseGateway implements MediaOptimiseGateway {
       rethrow;
     } catch (error) {
       debugPrint('mediaOptimise call failed: ${error.runtimeType}');
-      throw MediaFailure(
+      throw const MediaFailure(
         'The server-side image optimisation step could not run. The upload was not published — '
         'retry it, or disable optimisation in the media settings.',
       );

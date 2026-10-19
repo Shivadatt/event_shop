@@ -47,7 +47,7 @@ void main() {
     });
 
     test('an unpriced product yields a null band, not a zero price', () {
-      const free = Product(id: 'x', name: 'Unpriced', retailPricePaise: 0);
+      const free = Product(id: 'x', name: 'Unpriced');
       final band = OmJsonLd.priceBand(free);
       expect(band.$1, isNull);
       expect(band.$2, isNull);
@@ -105,7 +105,7 @@ void main() {
 
     test('aggregateRating appears only with real review data', () {
       final reviewed = OmJsonLd.product(
-        product: Product(
+        product: const Product(
           id: 'r',
           name: 'Reviewed',
           retailPricePaise: 1000,
@@ -121,7 +121,7 @@ void main() {
 
     test('an unpriced, out-of-stock product still renders a page without a fake price', () {
       final doc = OmJsonLd.product(
-        product: const Product(id: 'o', name: 'Sold out', retailPricePaise: 0, stockQty: 0),
+        product: const Product(id: 'o', name: 'Sold out'),
       );
       final offers = doc['offers']! as Map<String, Object?>;
       expect(offers.containsKey('price'), isFalse);
@@ -197,7 +197,7 @@ void main() {
     });
 
     test('omits contactPoint entirely when there is no phone', () {
-      final org = OmJsonLd.organization(settings: const StoreSettings());
+      final org = OmJsonLd.organization();
       expect(org.containsKey('contactPoint'), isFalse);
     });
   });

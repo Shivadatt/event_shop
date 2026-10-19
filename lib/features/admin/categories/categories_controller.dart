@@ -184,9 +184,10 @@ final class CategoriesController extends AdminController {
 
   /// Deletes through the admin repository.
   ///
-  /// NEEDS OWNER(AdminRepository): `Future<void> deleteCategory(String categoryId)` — the server
-  /// must re-check the role, refuse while any product still references the id, and write the audit
-  /// row. `CategoryRepository` is read-only by design, so no admin write path exists yet.
+  /// AGREED with the backend owner (r2 convergence list): the repository method
+  /// `Future<void> deleteCategory(String categoryId)` — the server must re-check the role, refuse
+  /// while any product still references the id, and write the audit row. `CategoryRepository` stays
+  /// read-only by design, so this is the only write path the screen uses.
   Future<bool> remove(Category category) async {
     final blocked = deleteBlockReason(category);
     if (blocked != null) {
@@ -218,7 +219,7 @@ final class CategoryEditController extends AdminController {
   final CategoryRepository _catalog = Get.find<CategoryRepository>();
 
   final Rxn<Category> draft = Rxn<Category>();
-  final RxList<String> issues = <String>.obs();
+  final RxList<String> issues = <String>[].obs;
   final RxnString slugSource = RxnString();
 
   bool get isNew => draft.value?.id.isEmpty ?? true;
@@ -374,8 +375,9 @@ final class CategoryEditController extends AdminController {
   /// Creates or updates. The slug uniqueness check that matters is the one inside the write: two
   /// operators can hold the same candidate at the same time and only the server can order them.
   ///
-  /// NEEDS OWNER(AdminRepository): `Future<Category> saveCategory(Category category)` — server-side
-  /// role re-check, slug collision refusal, cycle refusal, and the audit row.
+  /// AGREED with the backend owner (r2 convergence list): the repository method
+  /// `Future<Category> saveCategory(Category category)` — server-side role re-check, slug collision
+  /// refusal, cycle refusal, and the audit row.
   Future<Category?> save() async {
     final current = draft.value;
     if (current == null) return null;

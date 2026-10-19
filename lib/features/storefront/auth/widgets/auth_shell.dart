@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
+import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
-import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/features/storefront/common/store_shell.dart';
 
 /// Chrome shared by the four auth screens: a narrow centred card so a credential form never
@@ -85,7 +84,7 @@ final class AuthShell extends StatelessWidget {
                   ],
                   if (footer.isNotEmpty) ...<Widget>[
                     const SizedBox(height: OmSpacing.md),
-                    OmDivider(space: OmSpacing.sm),
+                    const OmDivider(space: OmSpacing.sm),
                     ...footer,
                   ],
                 ],

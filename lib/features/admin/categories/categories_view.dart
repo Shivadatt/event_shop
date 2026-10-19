@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
-import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
@@ -206,7 +205,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                             padding: const EdgeInsets.only(top: OmSpacing.md),
                             child: Row(
                               children: <Widget>[
-                                Expanded(
+                                const Expanded(
                                   child: OmText(
                                     'The whole tree is loaded at once — a partial tree would make '
                                     'the parent chooser wrong.',

@@ -67,15 +67,15 @@ abstract final class CatalogQueryBuilder {
     switch (sort) {
       case SortMode.relevance:
       case SortMode.bestSelling:
-        return q.orderBy('soldCount', descending: true).orderBy(documentId: true);
+        return q.orderBy('soldCount', descending: true).orderBy(FieldPath.documentId);
       case SortMode.newest:
-        return q.orderBy('createdAt', descending: true).orderBy(documentId: true);
+        return q.orderBy('createdAt', descending: true).orderBy(FieldPath.documentId);
       case SortMode.priceLowHigh:
-        return q.orderBy('retailPricePaise').orderBy(documentId: true);
+        return q.orderBy('retailPricePaise').orderBy(FieldPath.documentId);
       case SortMode.priceHighLow:
-        return q.orderBy('retailPricePaise', descending: true).orderBy(documentId: true);
+        return q.orderBy('retailPricePaise', descending: true).orderBy(FieldPath.documentId);
       case SortMode.rating:
-        return q.orderBy('ratingAvg', descending: true).orderBy(documentId: true);
+        return q.orderBy('ratingAvg', descending: true).orderBy(FieldPath.documentId);
     }
   }
 
@@ -92,19 +92,19 @@ abstract final class CatalogQueryBuilder {
   static Query<Map<String, dynamic>> _applyStartAfter(
     Query<Map<String, dynamic>> q,
     SortMode sort,
-    _Cursor cursor,
+    CatalogCursor cursor,
   ) {
     switch (sort) {
       case SortMode.relevance:
       case SortMode.bestSelling:
-        return q.startAfter(cursor.sortValue, cursor.id);
+        return q.startAfter([cursor.sortValue, cursor.id]);
       case SortMode.newest:
-        return q.startAfter(cursor.timestampValue, cursor.id);
+        return q.startAfter([cursor.timestampValue, cursor.id]);
       case SortMode.priceLowHigh:
       case SortMode.priceHighLow:
-        return q.startAfter(cursor.sortValue, cursor.id);
+        return q.startAfter([cursor.sortValue, cursor.id]);
       case SortMode.rating:
-        return q.startAfter(cursor.sortValue, cursor.id);
+        return q.startAfter([cursor.sortValue, cursor.id]);
     }
   }
 
@@ -119,11 +119,11 @@ abstract final class CatalogQueryBuilder {
     return base64Url.encode(utf8.encode(jsonEncode(encoded)));
   }
 
-  static _Cursor? decodeCursor(String? cursor) {
+  static CatalogCursor? decodeCursor(String? cursor) {
     if (cursor == null || cursor.isEmpty) return null;
     try {
       final map = jsonDecode(utf8.decode(base64Url.decode(cursor))) as Map<String, dynamic>;
-      return _Cursor(
+      return CatalogCursor(
         sortValue: map['v'],
         id: map['id'] as String,
       );
@@ -152,8 +152,11 @@ abstract final class CatalogQueryBuilder {
   }
 }
 
-final class _Cursor {
-  const _Cursor({required this.sortValue, required this.id});
+/// The decoded half of a [CatalogQueryBuilder.encodeCursor] page token: the sort key of the last
+/// document the caller was shown plus its id, which together are what `startAfter` needs to be
+/// deterministic. Public because [CatalogQueryBuilder.decodeCursor] hands it back to repositories.
+final class CatalogCursor {
+  const CatalogCursor({required this.sortValue, required this.id});
   final Object? sortValue;
   final String id;
 

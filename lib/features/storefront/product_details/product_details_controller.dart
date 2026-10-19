@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/session_store.dart';
@@ -98,37 +100,43 @@ final class ProductDetailsController extends GetxController with WishlistToggleM
     _granularity = OrderGranularity(minQty: loaded.minOrderQty, multiple: loaded.orderMultiple);
     quantity.value = _granularity!.clampQty(loaded.minOrderQty);
     _reprice();
-    _loadExtras(loaded);
+    // The page is interactive while the extras stream in; each one lands on its own Rx.
+    unawaited(_loadExtras(loaded));
   }
 
   Future<void> _loadExtras(Product loaded) async {
     loadingExtras.value = true;
-    Get.find<SessionStore>();
-    if (loaded.categorySlug.isNotEmpty) {
-      safeCall<Category>(() => Get.find<CategoryRepository>().bySlug(loaded.categorySlug))
-          .then((c) => category.value = c);
-    }
-    safeCall<List<Product>>(() => Get.find<ProductRepository>().relatedTo(loaded, limit: 12))
-        .then((r) => related.assignAll(r ?? const <Product>[]));
-    safeCall<List<Review>>(() => Get.find<ReviewRepository>().forProduct(loaded.id))
-        .then((l) => reviews.assignAll(l ?? const <Review>[]));
-    safeCall<RatingBreakdown>(() => Get.find<ReviewRepository>().breakdownFor(loaded.id))
-        .then((b) => breakdown.value = b);
-    safeCall<List<ProductVariant>>(() => Get.find<VariantRepository>().forProduct(loaded.id))
-        .then((v) {
-      final list = v ?? const <ProductVariant>[];
-      variants.assignAll(list);
-      if (list.isNotEmpty) {
-        selectedVariant.value = list.first;
-        _applyVariantGranularity(list.first);
-      }
-    });
-    safeCall<int>(
-      () => Get.find<ProductRepository>().availableStock(
-        loaded.id,
-        variantId: variant?.id,
-      ),
-    ).then((s) => availableStock.value = s);
+    await Future.wait<void>(<Future<void>>[
+      if (loaded.categorySlug.isNotEmpty)
+        safeCall<Category>(
+          () => Get.find<CategoryRepository>().bySlug(loaded.categorySlug),
+        ).then<void>((c) => category.value = c),
+      safeCall<List<Product>>(
+        () => Get.find<ProductRepository>().relatedTo(loaded, limit: 12),
+      ).then<void>((r) => related.assignAll(r ?? const <Product>[])),
+      safeCall<List<Review>>(
+        () => Get.find<ReviewRepository>().forProduct(loaded.id),
+      ).then<void>((l) => reviews.assignAll(l ?? const <Review>[])),
+      safeCall<RatingBreakdown>(
+        () => Get.find<ReviewRepository>().breakdownFor(loaded.id),
+      ).then<void>((b) => breakdown.value = b),
+      safeCall<List<ProductVariant>>(
+        () => Get.find<VariantRepository>().forProduct(loaded.id),
+      ).then<void>((v) {
+        final list = v ?? const <ProductVariant>[];
+        variants.assignAll(list);
+        if (list.isNotEmpty) {
+          selectedVariant.value = list.first;
+          _applyVariantGranularity(list.first);
+        }
+      }),
+      safeCall<int>(
+        () => Get.find<ProductRepository>().availableStock(
+              loaded.id,
+              variantId: variant?.id,
+            ),
+      ).then<void>((s) => availableStock.value = s),
+    ]);
     loadingExtras.value = false;
   }
 
@@ -199,7 +207,7 @@ final class ProductDetailsController extends GetxController with WishlistToggleM
     if (p == null) return;
     final violation = granularity.violationFor(quantity.value);
     if (violation != null) {
-      Get.snackbar('Adjust quantity', violation, snackDuration: const Duration(seconds: 3));
+      Get.snackbar('Adjust quantity', violation);
       return;
     }
     Get.find<CartStore>().add(
@@ -208,7 +216,7 @@ final class ProductDetailsController extends GetxController with WishlistToggleM
     Get.snackbar(
       'Added to cart',
       '${p.name} — ${quantity.value} × unit. Review the cart to continue.',
-      snackDuration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -243,8 +251,7 @@ final class ProductDetailsController extends GetxController with WishlistToggleM
     final settings = Get.find<SettingsStore>().value;
     final link = settings.whatsappLink;
     if (link.isEmpty) {
-      Get.snackbar('Unavailable', 'The store has not published a WhatsApp number yet.',
-          snackDuration: const Duration(seconds: 3));
+      Get.snackbar('Unavailable', 'The store has not published a WhatsApp number yet.');
       return;
     }
     final message = 'Hello, I would like to enquire about "${p.name}"'
@@ -259,15 +266,23 @@ final class ProductDetailsController extends GetxController with WishlistToggleM
   Future<void> openMap() async {
     final settings = Get.find<SettingsStore>().value;
     if (settings.googleMapsUrl.isEmpty) {
-      Get.snackbar('Unavailable', 'The store has not published a map link yet.',
-          snackDuration: const Duration(seconds: 3));
+      Get.snackbar('Unavailable', 'The store has not published a map link yet.');
       return;
     }
     await OmExternalLink.open(Get.context!, settings.googleMapsUrl, label: 'Store map');
   }
 
-  Future<void> copyShareLink() =>
-      OmExternalLink.copy(Get.location, note: 'Product link copied — paste it to share.');
+  /// Share link for the product page. GetX exposes no `Get.location`; the absolute URL is built
+  /// from the app's base URI and the product's own canonical route, so a pasted link resolves to
+  /// this same page in a new tab.
+  Future<void> copyShareLink() async {
+    final p = product.value;
+    final path = p == null ? Get.currentRoute : OmRoutes.forProduct(p.pathSlug);
+    await OmExternalLink.copy(
+      Uri.base.resolve(path).toString(),
+      note: 'Product link copied — paste it to share.',
+    );
+  }
 
   void retry() => load();
 }

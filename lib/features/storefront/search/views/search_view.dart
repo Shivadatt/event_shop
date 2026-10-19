@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+// `SearchController` is also a Material widget state class (search_anchor.dart); this page uses
+// the storefront's GetX controller, so the Material name is hidden.
+import 'package:flutter/material.dart' hide SearchController;
 import 'package:get/get.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
@@ -6,7 +8,6 @@ import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
-import 'package:om_events/data/query.dart';
 import 'package:om_events/features/storefront/catalog/widgets/catalog_results.dart';
 import 'package:om_events/features/storefront/common/external_links.dart';
 import 'package:om_events/features/storefront/common/store_shell.dart';
@@ -70,7 +71,7 @@ class _SearchField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        OmText(
+        const OmText(
           'FIND IT',
           variant: OmTextVariant.label,
         ),
@@ -80,7 +81,6 @@ class _SearchField extends StatelessWidget {
           hint: 'Balloons, backdrops, tableware…',
           prefixIcon: Icons.search,
           initialValue: controller.term.value,
-          maxLines: 1,
           textInputAction: TextInputAction.search,
           onChanged: controller.onTermChanged,
           onSubmitted: controller.runSearch,

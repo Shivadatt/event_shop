@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:async';
-
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:om_events/app/core/errors/failures.dart';
@@ -172,22 +170,49 @@ final class ForgotPasswordController extends GetxController with AuthFormMixin {
   void goLogin() => Get.back<void>();
 }
 
-/// `/reset-password`.
+/// `/reset-password` — the target of the `oobCode` link Firebase emails out.
 ///
-/// Firebase delivers a one-tap link that completes the reset itself. Finishing it *inside* the
-/// app needs `AuthRepository.confirmPasswordReset`, which the repository interface does not
-/// expose (see `lib/data/repositories/auth_repository.dart:23`), so this screen never pretends to
-/// submit a new password: it explains the emailed link and offers to send another one.
+/// The link works two ways: Firebase's own hosted page completes it, and this screen can finish it
+/// in-app by handing the code to `AuthRepository.confirmPasswordReset`. The code proves possession
+/// of the mailbox and is single-use; it grants no session or role, so it is read only at submit
+/// time, never stored in a field, and never echoed back in a failure message.
 final class ResetPasswordController extends GetxController with AuthFormMixin {
-  /// Presence only — the token value is never read, held in a controller field or passed on.
-  bool get hasOobCode =>
-      (Get.parameters['oobCode'] ?? '').isNotEmpty ||
-      Uri.parse(Get.fullPath ?? Get.currentRoute).queryParameters.containsKey('oobCode');
+  final TextEditingController password = TextEditingController();
+  final TextEditingController confirm = TextEditingController();
 
-  OmFailure get unsupported => const NotImplementedFailure(
-        'This build cannot complete a reset link in the page. Use the button in the email '
-        'Firebase sent you, or send a fresh reset email below.',
-      );
+  final RxBool showPassword = false.obs;
+
+  /// True once Firebase has accepted the code and written the new password. Sign-in is not
+  /// automatic: `confirmPasswordReset` returns no user, so the screen points at the login form.
+  final RxBool done = false.obs;
+
+  @override
+  void onClose() {
+    password.dispose();
+    confirm.dispose();
+    super.onClose();
+  }
+
+  /// GetX has no `Get.fullPath`: a route pushed with `parameters:` lands the code in
+  /// `Get.parameters`, while a pasted deep link leaves it as a raw `?oobCode=…` suffix.
+  String get oobCode =>
+      Get.parameters['oobCode'] ?? OmRoutePath.query(Get.currentRoute)['oobCode'] ?? '';
+
+  bool get hasOobCode => oobCode.isNotEmpty;
+
+  String? validateConfirm(String? value) {
+    if (value != password.text) return 'The two passwords do not match';
+    return null;
+  }
+
+  Future<void> submit() async {
+    await run(() async {
+      await auth.confirmPasswordReset(oobCode: oobCode, newPassword: password.text);
+      password.clear();
+      confirm.clear();
+      done.value = true;
+    });
+  }
 
   Future<void> sendAnotherEmail(String email) async {
     if (busy.value) return;

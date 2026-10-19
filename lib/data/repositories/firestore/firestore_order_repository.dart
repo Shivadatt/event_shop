@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/services/firebase/firebase_backend.dart';
 import 'package:om_events/app/core/services/session_store.dart';
@@ -32,9 +32,9 @@ final class FirestoreOrderRepository implements OrderRepository {
     Query<Map<String, dynamic>> q = Collections.orders_
         .where('userId', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
-        .orderBy(documentId: true);
+        .orderBy(FieldPath.documentId);
     final after = _decodeCursor(cursor);
-    if (after != null) q = q.startAfter(after.timestamp, after.id);
+    if (after != null) q = q.startAfter([after.timestamp, after.id]);
     final snap = await q.limit(pageSize + 1).get();
     final docs = snap.docs;
     final hasMore = docs.length > pageSize;

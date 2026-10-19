@@ -1,5 +1,4 @@
 import 'package:get/get.dart';
-import 'package:om_events/app/core/errors/failures.dart';
 import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/data/models/coupon.dart';
 import 'package:om_events/data/repositories/admin_repository.dart';
@@ -109,7 +108,6 @@ final class CouponEditController extends AdminController {
           code: '',
           kind: CouponKind.percentage,
           percentOff: 10,
-          perUserLimit: 1,
         );
   }
 

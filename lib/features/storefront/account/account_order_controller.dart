@@ -58,7 +58,7 @@ final class AccountSettingsController extends GetxController {
 
   Future<void> signOut() async {
     final ok = await tryCall(() => Get.find<AuthRepository>().signOut());
-    if (ok) Get.offAllNamed<dynamic>(OmRoutes.home);
+    if (ok) unawaited(Get.offAllNamed<dynamic>(OmRoutes.home));
   }
 }
 

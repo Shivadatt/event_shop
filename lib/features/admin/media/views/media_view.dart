@@ -97,7 +97,7 @@ final class MediaView extends StatelessWidget {
                     columns: <OmAdminColumn>[
                       OmAdminColumn(
                         heading: 'Used by',
-                        cell: (c, i) => Text('${usage[i].entityName}'),
+                        cell: (c, i) => Text(usage[i].entityName),
                       ),
                       OmAdminColumn(heading: 'Kind', cell: (c, i) => Text(usage[i].ref.kind.code)),
                       OmAdminColumn(
@@ -144,11 +144,11 @@ final class MediaView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: OmSpacing.lg),
-              OmAdminSection(
+              const OmAdminSection(
                 title: 'Orphan cleanup',
                 subtitle: 'Scans the bucket against the reference set and lists unreferenced objects. '
                     'Deleting needs an explicit confirmation and re-checks each path first.',
-                child: const OmMediaOrphanPanel(),
+                child: OmMediaOrphanPanel(),
               ),
             ],
           ),

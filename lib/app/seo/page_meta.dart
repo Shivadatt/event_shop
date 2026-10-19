@@ -72,7 +72,6 @@ final class PageMeta {
         seoTitle: titleTemplate ?? seoTitle,
         primary: primary,
         secondary: secondary,
-        includeBrand: true,
       );
 
   String descriptionFor({String? seoDescription, String? body}) => OmSeo.description(

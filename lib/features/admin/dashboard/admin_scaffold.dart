@@ -277,7 +277,7 @@ class _SessionChip extends StatelessWidget {
       // leave the admin area either way rather than to keep rendering privileged surfaces.
     }
     session.clear();
-    Get.offAllNamed<dynamic>(OmRoutes.home);
+    await Get.offAllNamed<dynamic>(OmRoutes.home);
   }
 }
 
@@ -299,6 +299,12 @@ class _BackendStatusBanner extends StatelessWidget {
         (report.missing.isEmpty
             ? ''
             : ' Missing configuration: ${report.missing.join(', ')}.');
+
+    // Which half is missing decides the claim. Firestore down means nothing below can be trusted.
+    // Only Supabase down means the images are missing and every number on the page is still a real
+    // read — saying "every list is empty or failing" there would tell an operator their stock
+    // counts were junk when they were not.
+    final bool dataDown = !report.firebaseReady;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         OmSpacing.md,
@@ -307,12 +313,16 @@ class _BackendStatusBanner extends StatelessWidget {
         0,
       ),
       child: OmAdminNotice(
-        title: 'Backend not connected',
-        tone: OmTone.danger,
+        title: dataDown ? 'Backend not connected' : 'Media backend not connected',
+        tone: dataDown ? OmTone.danger : OmTone.warning,
         icon: Icons.cloud_off,
-        message: 'Admin is running against ${parts.isEmpty ? 'no backend' : parts.join(' and ')} '
-            'that is configured.$detail Every list below is therefore empty or failing — this is '
-            'not a store with no data.',
+        message: dataDown
+            ? 'Admin is running against ${parts.isEmpty ? 'no backend' : parts.join(' and ')} '
+                'that is configured.$detail Every list below is therefore empty or failing — this is '
+                'not a store with no data.'
+            : 'Product and category images cannot be served: Supabase media is not configured.$detail '
+                'Order, stock, pricing and customer reads still come from Firestore and are shown '
+                'normally.',
       ),
     );
   }
@@ -469,7 +479,7 @@ class _NavDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(OmSpacing.md),
               child: Row(
                 children: <Widget>[
-                  Expanded(
+                  const Expanded(
                     child: OmText('OM Events admin', variant: OmTextVariant.h3),
                   ),
                   OmIconButton(
@@ -494,7 +504,7 @@ class _NavDrawer extends StatelessWidget {
                 ],
               ),
             ),
-            const OmDivider(space: OmSpacing.md, indent: 0),
+            const OmDivider(space: OmSpacing.md),
             Expanded(
               child: ListView.builder(
                 itemCount: AdminNav.items.length,

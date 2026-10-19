@@ -28,7 +28,7 @@ final class CategoryEditPanel extends StatelessWidget {
   Widget build(BuildContext context) => Obx(() {
         final draft = editor.draft.value;
         if (draft == null) {
-          return OmAdminSection(
+          return const OmAdminSection(
             title: 'Category editor',
             spaceAbove: 0,
             child: OmCard(
@@ -79,7 +79,7 @@ final class CategoryEditPanel extends StatelessWidget {
                     items: <String>['', ...options.map((c) => c.id)],
                     itemLabel: (id) =>
                         id.isEmpty ? 'Top level (no parent)' : list.labelFor(id),
-                    onChanged: (id) => editor.setParent(id),
+                    onChanged: editor.setParent,
                   ),
                   _OrderField(draft: draft, onChanged: editor.setOrder),
                   OmTextField(
@@ -238,7 +238,6 @@ class _OrderFieldState extends State<_OrderField> {
   Widget build(BuildContext context) => OmNumberField(
         label: 'Display order',
         controller: _text,
-        min: 0,
         max: 9999,
         helper: 'Lower numbers appear first among siblings.',
         validator: (value) {

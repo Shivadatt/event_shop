@@ -9,8 +9,8 @@ import 'package:om_events/data/models/wholesale.dart';
 import 'package:om_events/features/admin/dashboard/admin_scaffold.dart';
 import 'package:om_events/features/admin/shared/admin_csv.dart';
 import 'package:om_events/features/admin/shared/admin_widgets.dart';
-import 'package:om_events/features/admin/widgets/admin_badges.dart';
 import 'package:om_events/features/admin/wholesale/wholesale_controller.dart';
+import 'package:om_events/features/admin/widgets/admin_badges.dart';
 
 /// Wholesale applications: the queue, a detail view, and approve / reject.
 final class WholesaleView extends StatelessWidget {
@@ -130,7 +130,7 @@ class _ApplicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fields = <Widget>[
+    final fields = <OmAdminMeta>[
       OmAdminMeta(label: 'COMPANY', value: application.companyName, emphasise: true),
       OmAdminMeta(label: 'CONTACT', value: application.contactName),
       OmAdminMeta(label: 'PHONE', value: application.phone),

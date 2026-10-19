@@ -432,10 +432,9 @@ class _ZoneEditor extends StatelessWidget {
 
 // --- numeric formatting helpers --------------------------------------------
 
-String _rupeeInput(int paise) {
-  final rupees = paise / 100;
-  return paise % 100 == 0 ? rupees.toStringAsFixed(0) : rupees.toStringAsFixed(2);
-}
+/// Rupee text for a money field. Delegates to the shared admin formatter so there is one rupee
+/// rendering in the panel; it also stays in integer paise instead of round-tripping a double.
+String _rupeeInput(int paise) => AdminFormat.rupeeText(paise);
 
 /// Basis points are shown as a plain percent number in the field (1800 -> "18").
 String _bpsRupee(int bps) {

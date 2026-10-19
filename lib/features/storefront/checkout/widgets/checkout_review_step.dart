@@ -4,6 +4,7 @@ import 'package:om_events/app/core/utils/money.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_inputs.dart';
 import 'package:om_events/app/core/widgets/om_media_image.dart';
+import 'package:om_events/app/core/widgets/om_price.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
 import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
@@ -106,7 +107,7 @@ class _LinesCard extends StatelessWidget {
                   ],
                 ),
               ),
-            OmText(
+            const OmText(
               'These are our displayed prices for your quantities. The order server re-prices every '
               'line from the live catalogue when it creates the order.',
               variant: OmTextVariant.caption,
@@ -186,12 +187,12 @@ class _PaymentPicker extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          OmText('How you pay', variant: OmTextVariant.bodyStrong),
+          const OmText('How you pay', variant: OmTextVariant.bodyStrong),
           const SizedBox(height: OmSpacing.sm),
           Obx(() {
             final methods = controller.offeredMethods;
             if (methods.isEmpty) {
-              return OmText(
+              return const OmText(
                 'This store has not published any payment method yet, so the server will confirm '
                 'what is available when the order is created.',
                 variant: OmTextVariant.caption,
@@ -338,13 +339,15 @@ class _ChangedTotalPanel extends StatelessWidget {
               child: Row(
                 children: <Widget>[
                   Expanded(child: Text(change.label, style: styles.body)),
-                  Text(change.estimateText, style: styles.caption),
+                  // Both figures are the paise the controller carried: this page never re-derives
+                  // a total, it only formats what the estimate and the receipt already said.
+                  OmMoneyText(change.estimatePaise, style: styles.caption),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: OmSpacing.sm),
                     child: Text('→', style: TextStyle(fontSize: 12)),
                   ),
-                  Text(
-                    change.serverText,
+                  OmMoneyText(
+                    change.serverPaise,
                     style: styles.bodyStrong.copyWith(
                       color: change.deltaPaise > 0
                           ? OmColors.danger
@@ -356,7 +359,7 @@ class _ChangedTotalPanel extends StatelessWidget {
             ),
           if (controller.serverOrder.value == null) ...<Widget>[
             const SizedBox(height: OmSpacing.xs),
-            OmText(
+            const OmText(
               'Per-line detail needs the order document, which was not readable for this guest '
               'order. The totals above are still the server\'s own figures.',
               variant: OmTextVariant.caption,
@@ -385,7 +388,7 @@ class _ChangedTotalPanel extends StatelessWidget {
                   variant: OmButtonVariant.danger,
                   loading: controller.placing.value,
                   busyLabel: 'Cancelling…',
-                  onPressed: () => controller.declineChanges(),
+                  onPressed: controller.declineChanges,
                 ),
               ),
               const SizedBox(width: OmSpacing.md),

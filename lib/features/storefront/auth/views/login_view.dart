@@ -81,7 +81,7 @@ final class LoginView extends GetView<LoginController> {
                 ),
                 if (failure != null && failure.isAuthFailure) ...<Widget>[
                   const SizedBox(height: OmSpacing.sm),
-                  OmText(
+                  const OmText(
                     'Check the email spelling, or use "Forgot password?" — after several failed '
                     'tries Firebase may temporarily block sign-in.',
                     variant: OmTextVariant.caption,

@@ -29,7 +29,7 @@ final class ProfileView extends GetView<ProfileController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                OmText('Sign in to edit your details.', variant: OmTextVariant.h3),
+                const OmText('Sign in to edit your details.', variant: OmTextVariant.h3),
                 const SizedBox(height: OmSpacing.md),
                 OmButton(
                   label: 'Sign in',
@@ -116,7 +116,7 @@ final class ProfileView extends GetView<ProfileController> {
                 ),
                 if (controller.saved.value && failure == null) ...<Widget>[
                   const SizedBox(height: OmSpacing.md),
-                  OmText(
+                  const OmText(
                     'Saved. The store confirmed the write; your session updates from it.',
                     variant: OmTextVariant.caption,
                     color: OmColors.success,

@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:om_events/app/core/widgets/om_buttons.dart';
 import 'package:om_events/app/core/widgets/om_responsive.dart';
 import 'package:om_events/app/core/widgets/om_states.dart';
-import 'package:om_events/app/core/widgets/om_surfaces.dart';
 import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/features/storefront/account/account_data_controller.dart';

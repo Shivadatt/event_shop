@@ -58,7 +58,7 @@ final class OmProductMediaEditor extends StatelessWidget {
                       'image references below stay intact.',
                 )
               else if (images.isEmpty)
-                OmCard(
+                const OmCard(
                   child: OmEmptyState(
                     compact: true,
                     icon: Icons.add_photo_alternate_outlined,
@@ -94,12 +94,11 @@ final class OmProductMediaEditor extends StatelessWidget {
                   OmButton(
                     label: 'Save image list',
                     icon: Icons.playlist_add_check,
-                    variant: OmButtonVariant.primary,
                     // The controller refuses this too; disabling the button is what keeps the
                     // explanation from arriving only after a click.
                     onPressed: images.isEmpty || product.id.isEmpty
                         ? null
-                        : () => controller.commitImages(),
+                        : controller.commitImages,
                   ),
                   if (missingAlt > 0)
                     OmBadge(
@@ -148,7 +147,6 @@ class _MediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final styles = context.omText;
     return OmCard(
-      padding: const EdgeInsets.all(OmSpacing.md),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

@@ -34,7 +34,7 @@ class CatalogResults extends StatelessWidget {
             const SizedBox(height: OmSpacing.md),
             OmProductGrid(
               itemCount: context.omColumnCount * 2,
-              itemBuilder: (_, __) => const OmProductCardSkeleton(),
+              itemBuilder: (_, _) => const OmProductCardSkeleton(),
             ),
           ],
         );
@@ -222,7 +222,7 @@ class _SortMenu extends StatelessWidget {
           for (final mode in SortMode.values)
             PopupMenuItem<SortMode>(
               value: mode,
-              child: OmText(mode.label, variant: OmTextVariant.body),
+              child: OmText(mode.label),
             ),
         ],
         child: Row(
@@ -257,7 +257,7 @@ class _ZeroResults extends StatelessWidget {
             padding: const EdgeInsets.only(top: OmSpacing.lg),
             child: Column(
               children: <Widget>[
-                OmText('Or browse a category:', variant: OmTextVariant.bodyStrong),
+                const OmText('Or browse a category:', variant: OmTextVariant.bodyStrong),
                 const SizedBox(height: OmSpacing.sm),
                 Wrap(
                   spacing: OmSpacing.sm,

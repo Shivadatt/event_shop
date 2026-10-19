@@ -46,6 +46,6 @@ abstract final class OmContrast {
   static String describe(String pair, double value, {bool large = false}) {
     final required = large ? 3.0 : 4.5;
     final verdict = value >= required ? 'PASS' : 'FAIL';
-    return '${pair.padRight(38)} ${value.toStringAsFixed(2)}:1  (needs ${required}:1)  $verdict';
+    return '${pair.padRight(38)} ${value.toStringAsFixed(2)}:1  (needs $required:1)  $verdict';
   }
 }

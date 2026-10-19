@@ -98,6 +98,12 @@ final class CustomerDetailController extends AdminController {
 
   final Rxn<UserProfile> profile = Rxn<UserProfile>();
   final RxList<Order> orders = <Order>[].obs;
+
+  /// How many orders the account has, from the page's own server total.
+  ///
+  /// Deliberately *not* the length of the loaded page: a customer with 25 lifetime orders and a
+  /// 10-row first page would otherwise be reported to staff as having 10. Stays null when the page
+  /// carries no total, and [ordersCountText] then says so out loud instead of guessing.
   final RxnInt orderCountEstimate = RxnInt();
   final Rxn<ReportRow> value = Rxn<ReportRow>();
 
@@ -120,19 +126,40 @@ final class CustomerDetailController extends AdminController {
       });
 
   Future<List<Order>> _ordersPage() async {
-    // NEEDS OWNER(AdminRepository): `String? customerId` on `listOrders` — see the orders
-    // controller. Until it lands this read cannot be scoped to one customer, so the screen says
-    // "orders unavailable" rather than showing an unfiltered queue.
-    final page = await _admin.listOrders(pageSize: 25, customerId: uid);
-    orderCountEstimate.value = page.items.length;
+    // AGREED with the backend owner (r2 convergence list): `String? customerId` on `listOrders` —
+    // see the orders controller. A queue that cannot be scoped server-side must not be approximated
+    // here by paging the whole order collection, so this read passes the uid through and lets the
+    // function do the filtering.
+    final page = await _admin.listOrders(customerId: uid);
+    // The page's own total is the only figure allowed to stand in for "how many orders this account
+    // has". `page.items.length` is the size of *this* page, so a 25-order account shown as a 10-row
+    // page used to be displayed as having 10 orders.
+    //
+    // `listOrders` now fills `totalEstimate` with a Firestore count aggregate for a customer-scoped
+    // query (firestore_admin_repository.dart), which is the only shape this panel asks for. The
+    // lifetime money figures still come from the `customerValue` server aggregate.
+    orderCountEstimate.value = page.totalEstimate;
     return page.items;
   }
 
+  /// One line of plain English for the orders card. It never presents a page as a lifetime total.
+  String get ordersCountText {
+    final total = orderCountEstimate.value;
+    if (total != null) {
+      return '$total order(s) on record for this account, of which $loadedOrderCount row(s) are '
+          'loaded here. The lifetime figures above come from the server aggregate, not from these '
+          'rows.';
+    }
+    return '$loadedOrderCount order row(s) loaded for this account, and the server reported no '
+        'lifetime total on this page — so this is a page, not a count of orders. The figures above '
+        'come from the server aggregate.';
+  }
+
   Future<void> _loadValue() async {
-    // NEEDS OWNER(AdminRepository): `Future<ReportRow> customerValue(String uid)` — server-summed
-    // order count (`units`), paid paise (`revenuePaise`) and refunded paise (`discountPaise`),
-    // computed from the orders collection. A client-side sum would disagree with the revenue
-    // report the moment a refund lands, so this figure always comes from the function.
+    // AGREED with the backend owner (r2 convergence list): `Future<ReportRow> customerValue(String
+    // uid)` — server-summed order count (`units`), paid paise (`revenuePaise`) and refunded paise
+    // (`discountPaise`), computed from the orders collection. A client-side sum would disagree with
+    // the revenue report the moment a refund lands, so this figure always comes from the function.
     value.value = await _admin.customerValue(uid);
   }
 

@@ -113,73 +113,85 @@ final class CartTotalsPanel extends StatelessWidget {
         : null;
 
     return OmCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(child: OmText(title, variant: OmTextVariant.h3)),
-              if (countNote != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: OmSpacing.sm),
-                  child: OmText(countNote, variant: OmTextVariant.caption),
+      // The summary is heard as one statement in one order — heading, each line, the payable figure,
+      // then the caveat that it is an estimate. Left unmerged, a screen reader walks these loose
+      // texts as separate stops and the customer can land on the total before the numbers that make
+      // it up.
+      child: MergeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(child: OmText(title, variant: OmTextVariant.h3)),
+                if (countNote != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: OmSpacing.sm),
+                    child: OmText(countNote, variant: OmTextVariant.caption),
+                  ),
+              ],
+            ),
+            const SizedBox(height: OmSpacing.md),
+            _TotalRow(label: 'Merchandise total', paise: subtotalPaise),
+            if (slabSavingsPaise > 0)
+              _TotalRow(
+                label: 'Quantity (slab) savings',
+                paise: slabSavingsPaise,
+                asNegative: true,
+                tone: OmTone.success,
+              ),
+            if (couponDiscountPaise > 0)
+              _TotalRow(
+                label: couponCode == null
+                    ? 'Coupon discount'
+                    : 'Coupon “$couponCode”',
+                paise: couponDiscountPaise,
+                asNegative: true,
+                tone: OmTone.success,
+              ),
+            _TotalRow(
+              label: 'Shipping',
+              paise: shippingPaise,
+              absentLabel: shippingPaise == 0 ? 'Not decided yet' : null,
+            ),
+            if (taxPaise > 0) _TotalRow(label: 'GST', paise: taxPaise),
+            if (roundingPaise != 0)
+              _TotalRow(label: 'Round off', paise: roundingPaise),
+            const OmDivider(space: OmSpacing.sm),
+            Semantics(
+              // Spoken as an amount, not as a glyph: `OmMoney.format` output reads as "rupee four
+              // hundred eighty point zero zero" to some engines and as nothing to others, so the
+              // paise figure travels with the label.
+              excludeSemantics: true,
+              label: '$payableLabel $payablePaise paise',
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(payableLabel, style: styles.bodyStrong),
+                  ),
+                  Text(
+                    OmMoney.format(payablePaise),
+                    style: styles.priceLarge,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OmSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 15,
+                  color: styles.caption.color,
                 ),
-            ],
-          ),
-          const SizedBox(height: OmSpacing.md),
-          _TotalRow(label: 'Merchandise total', paise: subtotalPaise),
-          if (slabSavingsPaise > 0)
-            _TotalRow(
-              label: 'Quantity (slab) savings',
-              paise: slabSavingsPaise,
-              asNegative: true,
-              tone: OmTone.success,
+                const SizedBox(width: OmSpacing.xs),
+                Expanded(child: Text(note, style: styles.caption)),
+              ],
             ),
-          if (couponDiscountPaise > 0)
-            _TotalRow(
-              label: couponCode == null
-                  ? 'Coupon discount'
-                  : 'Coupon “$couponCode”',
-              paise: couponDiscountPaise,
-              asNegative: true,
-              tone: OmTone.success,
-            ),
-          _TotalRow(
-            label: 'Shipping',
-            paise: shippingPaise,
-            absentLabel: shippingPaise == 0 ? 'Not decided yet' : null,
-          ),
-          if (taxPaise > 0) _TotalRow(label: 'GST', paise: taxPaise),
-          if (roundingPaise != 0)
-            _TotalRow(label: 'Round off', paise: roundingPaise),
-          const OmDivider(space: OmSpacing.sm),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(payableLabel, style: styles.bodyStrong),
-              ),
-              Text(
-                OmMoney.format(payablePaise),
-                style: styles.priceLarge,
-                semanticsLabel: '$payableLabel $payablePaise paise',
-              ),
-            ],
-          ),
-          const SizedBox(height: OmSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(
-                Icons.verified_user_outlined,
-                size: 15,
-                color: styles.caption.color,
-              ),
-              const SizedBox(width: OmSpacing.xs),
-              Expanded(child: Text(note, style: styles.caption)),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
