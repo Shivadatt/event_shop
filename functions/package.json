@@ -9,6 +9,8 @@
   },
   "scripts": {
     "check:pricing": "node scripts/check_pricing_fixtures.js",
+    "check:replay-guard": "node scripts/check_order_replay_guard.js",
+    "test": "node --test test/*.test.js",
     "serve": "firebase emulators:start --only functions,firestore",
     "deploy": "firebase deploy --only functions"
   },

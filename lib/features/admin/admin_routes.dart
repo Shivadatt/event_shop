@@ -116,7 +116,9 @@ List<GetPage<dynamic>> get adminRoutes => <GetPage<dynamic>>[
         name: OmRoutes.adminCoupons,
         page: () => const CouponsView(),
         binding: CouponsBinding(),
-        middlewares: <GetMiddleware>[AdminGuard()],
+        // Coupon definitions are pricing-admin data: rules deny a staff read outright, and a bare
+        // collection query would surface as a permission error rather than a clean role boundary.
+        middlewares: <GetMiddleware>[AdminGuard(), PricingAdminGuard()],
       ),
       GetPage<dynamic>(
         name: OmRoutes.adminWholesale,

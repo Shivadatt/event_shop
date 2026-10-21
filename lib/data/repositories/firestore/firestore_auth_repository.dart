@@ -112,13 +112,16 @@ final class FirestoreAuthRepository implements AuthRepository {
       );
       final user = cred.user!;
       await user.updateDisplayName(displayName.trim());
-      await Collections.user(user.uid).set(<String, Object?>{
-        'uid': user.uid,
-        'email': user.email,
-        'phone': phone ?? '',
-        'displayName': displayName.trim(),
-      }, SetOptions(merge: true));
-      return _ensure(user);
+      // `users create` is false in the rules: accountEnsure mints the profile (and its role) from
+      // the Admin SDK. The optional phone is owner-writable profile data, so it follows the mint.
+      final profile = await _ensure(user);
+      final trimmedPhone = phone?.trim() ?? '';
+      if (trimmedPhone.isEmpty) return profile;
+      await Collections.user(user.uid).update(<String, Object?>{
+        'phone': trimmedPhone,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return profile.copyWith(phone: trimmedPhone);
     } on FirebaseAuthException catch (error) {
       throw _mapAuthError(error);
     } on FirebaseException catch (error) {
@@ -249,7 +252,12 @@ final class FirestoreAuthRepository implements AuthRepository {
       'status': WholesaleStatus.pending.code,
     };
     try {
-      await doc.set(touchCreate(payload), SetOptions(merge: false));
+      // The public allow-list admits createdAt but not updatedAt; the decision callable stamps
+      // updatedAt when an admin rules on the application. touchCreate would write both.
+      await doc.set(<String, Object?>{
+        ...payload,
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: false));
     } on FirebaseException catch (error) {
       throw FirebaseBackend.mapFirebaseError(error);
     }

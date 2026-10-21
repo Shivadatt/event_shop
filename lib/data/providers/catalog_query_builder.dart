@@ -23,21 +23,26 @@ abstract final class CatalogQueryBuilder {
     final status = query.status.code;
     q = q.where('status', isEqualTo: status);
 
+    final usesMultiValueCategory = categoryIds.length > 1;
     if (query.categorySlug != null && query.categorySlug!.isNotEmpty) {
       q = q.where('categorySlug', isEqualTo: query.categorySlug);
     } else if (categoryIds.length == 1) {
       q = q.where('categoryId', isEqualTo: categoryIds.first);
-    } else if (categoryIds.length > 1) {
+    } else if (usesMultiValueCategory) {
       // Firestore caps `in` at 30 values; the repository pre-trims the descendant set.
       q = q.where('categoryId', whereIn: categoryIds.take(30).toList(growable: false));
     }
 
     if (query.featuredOnly) q = q.where('isFeatured', isEqualTo: true);
 
-    // Wholesale-only products are visible only to wholesale buyers: the repository passes
-    // wholesaleOnly=false for retail shoppers, which excludes them server-side.
+    // Wholesale-only products are visible only to wholesale buyers. `firestore.rules` denies a
+    // retail/anonymous read of a wholesale-only row, and because Firestore refuses a whole query
+    // whose constraints could match an unreadable document, this clause is what makes a retail
+    // browse legal at all — the repository passes `wholesaleOnly: false` whenever the caller is not
+    // wholesale-entitled, and a toggle in the UI can never widen that.
     if (query.wholesaleOnly == false) q = q.where('isWholesaleOnly', isEqualTo: false);
 
+    final hasArrayContains = query.tags.isNotEmpty;
     for (final tag in query.tags.take(5)) {
       q = q.where('tags', arrayContains: tag);
     }
@@ -47,7 +52,7 @@ abstract final class CatalogQueryBuilder {
     if (term.isNotEmpty) {
       final tokens = term.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).take(5).toList();
       q = q.where('keywords', arrayContainsAny: tokens);
-    } else {
+    } else if (serverPriceRangeIsLegal(query, usesMultiValueCategory: usesMultiValueCategory, hasArrayContains: hasArrayContains)) {
       final min = query.minPricePaise;
       final max = query.maxPricePaise;
       if (min != null && min > 0) q = q.where('retailPricePaise', isGreaterThanOrEqualTo: min);
@@ -55,6 +60,29 @@ abstract final class CatalogQueryBuilder {
     }
 
     return applySort(q, query.sort);
+  }
+
+  /// Whether the price bounds may go into the query itself.
+  ///
+  /// Firestore allows one inequality *range*, and that field must also be the primary `orderBy`; a
+  /// second range on a different field is rejected outright. The bounds are therefore only legal
+  /// when (a) no search term already owns the slot, (b) the sort is a price sort, and (c) no
+  /// multi-value filter (`categoryId in`, or an `array-contains`) is present — those are
+  /// disjunctions and cannot be combined with a range on another field.
+  ///
+  /// Anything else drops the bounds to [matchesClient], which every read path already applies:
+  /// the filter still decides what the shopper sees, it just costs one extra page of reads instead
+  /// of a hard `permission-denied`/`invalid argument` from the server.
+  static bool serverPriceRangeIsLegal(
+    CatalogQuery query, {
+    required bool usesMultiValueCategory,
+    required bool hasArrayContains,
+  }) {
+    final hasBounds = (query.minPricePaise ?? 0) > 0 || (query.maxPricePaise ?? 0) > 0;
+    if (!hasBounds) return true;
+    if (query.search.trim().isNotEmpty) return false;
+    if (usesMultiValueCategory || hasArrayContains) return false;
+    return query.sort == SortMode.priceLowHigh || query.sort == SortMode.priceHighLow;
   }
 
   /// Primary sort + a stable `__name__` tiebreaker so cursors are deterministic. When a range is

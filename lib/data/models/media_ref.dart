@@ -19,8 +19,9 @@ final class MediaRef {
 
   final String id;
 
-  /// Public object URL, or a signed URL whose expiry is tracked by the media service. Never
-  /// assume it is permanent.
+  /// What was stored: a permanent public object URL, or empty on a private bucket. Never a signed
+  /// URL — see [storableUrl]. Treat it as possibly stale; the render-time URL comes from
+  /// `MediaRefResolver`, which is the only place a sized or signed URL is produced.
   final String url;
   final String storagePath;
   final String bucket;
@@ -32,8 +33,22 @@ final class MediaRef {
   final int? height;
   final int? sizeBytes;
 
-  /// CDN/transform variant used on grid pages so listing never pulls full-resolution images.
-  String get thumbnailUrl => url.contains('?') ? url : '$url?width=480';
+  /// The stored URL, unchanged.
+  ///
+  /// It deliberately does **not** append `?width=480`: Supabase only resizes on its `/render/image/`
+  /// endpoint, so a query string on a `/object/public/…` URL is ignored and a grid silently
+  /// downloads every original at full resolution. A sized variant needs the bucket's base URL and the
+  /// transform parameters, which live in `SupabaseStorageService.thumbnailUrl` / `MediaRenderSize`,
+  /// and `OmMediaImage` asks for one through `MediaRefResolver`.
+  String get thumbnailUrl => url;
+
+  /// The only URL form this model may serialise.
+  ///
+  /// A signed URL's `token=` *is* read access until it expires, so persisting one writes a secret into
+  /// a publicly readable document and produces an image that breaks on its own. A reference carrying
+  /// one is display-only: it stores as empty and the resolver re-signs it at render time, which is
+  /// exactly what a private bucket stores anyway.
+  static String storableUrl(String url) => url.contains('token=') ? '' : url;
 
   factory MediaRef.fromMap(Map<String, dynamic> m) => MediaRef(
         id: readStringOrEmpty(m, 'id'),
@@ -51,7 +66,7 @@ final class MediaRef {
 
   Map<String, Object?> toMap() => compact(<String, Object?>{
         'id': id,
-        'url': url,
+        'url': storableUrl(url),
         'storagePath': storagePath,
         'bucket': bucket,
         'altText': altText,

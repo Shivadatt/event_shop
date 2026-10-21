@@ -8,6 +8,7 @@ import 'package:om_events/app/routes/app_routes.dart';
 import 'package:om_events/app/theme/om_tokens.dart';
 import 'package:om_events/app/theme/om_typography.dart';
 import 'package:om_events/data/models/category.dart';
+import 'package:om_events/data/models/product.dart';
 import 'package:om_events/data/query.dart';
 import 'package:om_events/features/storefront/catalog/catalog_controller.dart';
 import 'package:om_events/features/storefront/common/store_product_card.dart';
@@ -23,41 +24,43 @@ class CatalogResults extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final items = controller.items.toList(growable: false);
-      final loading = controller.loadingFirst.value;
-      final failure = controller.failure.value;
-
-      if (loading && items.isEmpty) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            CatalogControls(controller: controller),
-            const SizedBox(height: OmSpacing.md),
-            OmProductGrid(
-              itemCount: context.omColumnCount * 2,
-              itemBuilder: (_, _) => const OmProductCardSkeleton(),
-            ),
-          ],
-        );
-      }
-
-      if (items.isEmpty) {
-        if (failure != null) {
-          return Column(
-            children: <Widget>[
-              CatalogControls(controller: controller),
-              const SizedBox(height: OmSpacing.md),
-              OmErrorState(failure: failure, onRetry: controller.refresh),
-            ],
-          );
-        }
-        return _ZeroResults(controller: controller);
-      }
-
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           CatalogControls(controller: controller),
-          const SizedBox(height: OmSpacing.sm),
+          const SizedBox(height: OmSpacing.md),
+          OmStateView<List<Product>>(
+            hasLoaded: controller.hasLoaded.value,
+            loading: controller.loadingFirst.value,
+            failure: controller.failure.value,
+            onRetry: controller.refresh,
+            value: items,
+            isEmpty: items.isEmpty,
+            empty: _ZeroResults(controller: controller),
+            skeleton: OmProductGrid(
+              itemCount: context.omColumnCount * 2,
+              itemBuilder: (_, _) => const OmProductCardSkeleton(),
+            ),
+            builder: (context, products) =>
+                _ProductResults(controller: controller, items: products),
+          ),
+        ],
+      );
+    });
+  }
+}
+
+/// The grid itself plus the server's own count and the next page's cursor.
+class _ProductResults extends StatelessWidget {
+  const _ProductResults({required this.controller, required this.items});
+
+  final CatalogController controller;
+  final List<Product> items;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
           _ResultCount(controller: controller, loaded: items.length),
           const SizedBox(height: OmSpacing.md),
           OmProductGrid(
@@ -79,8 +82,6 @@ class CatalogResults extends StatelessWidget {
           ],
         ],
       );
-    });
-  }
 }
 
 class _LoadMoreButton extends StatelessWidget {
@@ -237,7 +238,8 @@ class _SortMenu extends StatelessWidget {
       );
 }
 
-/// Zero-result state: the shared empty copy plus real, tappable category suggestions.
+/// Zero-result state: the shared empty copy plus real, tappable category suggestions. The controls
+/// row is drawn by [CatalogResults] around this, so every state sits under the same filters.
 class _ZeroResults extends StatelessWidget {
   const _ZeroResults({required this.controller});
 
@@ -249,8 +251,6 @@ class _ZeroResults extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        CatalogControls(controller: controller),
-        const SizedBox(height: OmSpacing.md),
         OmEmptyState.noProducts(onReset: controller.clearFilters),
         if (suggestions.isNotEmpty)
           Padding(

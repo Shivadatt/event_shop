@@ -12,6 +12,10 @@ const admin = require('firebase-admin');
 // `FieldValue` is `undefined` while `admin.firestore()` still works.
 const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
+// Shared coercion helpers (no Admin SDK dependency) so lib/pricing.js and lib/checkout.js and this
+// module cannot drift on how a paise amount is read out of a document or a callable payload.
+const { toInt } = require('./coerce');
+
 // The Functions runtime initialises the Admin SDK from ADC; do not hardcode a project id.
 admin.initializeApp();
 
@@ -29,14 +33,8 @@ const PRICE_EPSILON_PAISE = Number(process.env.OM_PRICE_EPSILON_PAISE || 100);
 const ADMIN_ROLES = ['staff', 'admin', 'owner'];
 const PRICING_ROLES = ['admin', 'owner'];
 
-function toInt(value, fallback = 0) {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = parseInt(value, 10);
-    if (!Number.isNaN(parsed)) return parsed;
-  }
-  return fallback;
-}
+// `toInt` is the shared coercion helper (lib/coerce.js) — the same binding lib/pricing.js and
+// lib/checkout.js use, so the three modules cannot drift on how a paise amount is read.
 
 // nanoid-style id: short, url-safe, sortable-enough. Document ids are opaque.
 function newId() {

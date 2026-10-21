@@ -183,7 +183,8 @@ final class MediaObjectRecord {
       'kind': kind.code,
       'ownerId': ownerId,
       'state': state.code,
-      'url': url,
+      // Same rule as the entity document: a signature is a read grant, never a stored value.
+      'url': MediaRef.storableUrl(url),
       'altText': altText,
       'order': order,
       'isPrimary': isPrimary,
@@ -286,6 +287,35 @@ final class FirestoreMediaObjectLedger implements MediaObjectLedger {
   @override
   String get unavailableReason => FirestoreUnavailableReason.text;
 
+  /// Runs a `media_objects` write and translates the one failure that is a rules problem rather than
+  /// a media problem.
+  ///
+  /// `firestore.rules` currently declares `match /media_objects/{mediaId} { allow write: if false; }`,
+  /// so a browser cannot record an upload at all: the pipeline reaches `recording`, Firestore denies
+  /// the write, and the promoted object is rolled back. A raw `FirebaseException/permission-denied`
+  /// surfaces in the gallery as "media storage could not upload" — which sends an operator to check
+  /// the bucket. Naming the collection and its rule is what makes it a one-line fix, and it is why the
+  /// ledger, not the repository, owns this translation: every write path goes through here.
+  Future<void> _guardWrite(String docPath, Future<void> Function() write) async {
+    try {
+      await write();
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') throw failureFor(docPath, error);
+      throw MediaFailure(
+        'Firestore denied the media ledger write on $docPath (${error.code}). '
+        '`media_objects` is the index that says which bucket keys are live, so an upload cannot be '
+        'published without it — its rules currently refuse every client write. Grant staff writes to '
+        '`media_objects` (docs/supabase-storage.md §8) before uploading.',
+      );
+    }
+  }
+
+  /// Everything else a ledger write can fail with, in the pipeline's own failure type.
+  MediaFailure failureFor(String docPath, Object error) => MediaFailure(
+        'Cannot record the media object in $docPath — ${error.runtimeType}. '
+        '${Env.hasFirebase ? 'Check the Firestore connection and retry.' : FirestoreUnavailableReason.text}',
+      );
+
   @override
   Future<void> upsert(MediaObjectRecord record) async {
     _assertAvailable();
@@ -295,10 +325,13 @@ final class FirestoreMediaObjectLedger implements MediaObjectLedger {
     // row's creation date, or the TTL sweep would keep resurrecting stale objects.
     final data = Map<String, Object?>.of(payload)
       ..['updatedAt'] = Timestamp.fromDate(record.updatedAt ?? DateTime.now());
-    await _db.collection(collectionPath).doc(record.id).set(
-          data.cast<String, dynamic>(),
-          SetOptions(merge: true),
-        );
+    await _guardWrite(
+      '$collectionPath/${record.id}',
+      () => _db.collection(collectionPath).doc(record.id).set(
+            data.cast<String, dynamic>(),
+            SetOptions(merge: true),
+          ),
+    );
   }
 
   @override
@@ -333,7 +366,7 @@ final class FirestoreMediaObjectLedger implements MediaObjectLedger {
         SetOptions(merge: true),
       );
     }
-    await batch.commit();
+    await _guardWrite('$collectionPath/${ids.first}', batch.commit);
   }
 
   @override
@@ -398,7 +431,10 @@ final class FirestoreMediaObjectLedger implements MediaObjectLedger {
       if (remaining.isEmpty && record.state == MediaObjectState.attached) {
         update['state'] = MediaObjectState.detached.code;
       }
-      await _db.collection(collectionPath).doc(id).update(update.cast<String, dynamic>());
+      await _guardWrite(
+        '$collectionPath/$id',
+        () => _db.collection(collectionPath).doc(id).update(update.cast<String, dynamic>()),
+      );
     }
   }
 
@@ -443,7 +479,7 @@ final class FirestoreMediaObjectLedger implements MediaObjectLedger {
       for (final id in slice) {
         batch.delete(_db.collection(collectionPath).doc(id));
       }
-      await batch.commit();
+      await _guardWrite('$collectionPath/${slice.first}', batch.commit);
     }
   }
 

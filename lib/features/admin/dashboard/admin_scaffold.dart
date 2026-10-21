@@ -55,7 +55,11 @@ abstract final class AdminNav {
         base: OmRoutes.adminWholesale, label: 'Wholesale', icon: Icons.groups_outlined),
     AdminNavItem(
         base: OmRoutes.adminReviews, label: 'Reviews', icon: Icons.star_border_outlined),
-    AdminNavItem(base: OmRoutes.adminCoupons, label: 'Coupons', icon: Icons.confirmation_number_outlined),
+    AdminNavItem(
+        base: OmRoutes.adminCoupons,
+        label: 'Coupons',
+        icon: Icons.confirmation_number_outlined,
+        pricingOnly: true),
     AdminNavItem(base: OmRoutes.adminMedia, label: 'Media', icon: Icons.image_outlined),
     AdminNavItem(base: OmRoutes.adminReports, label: 'Reports', icon: Icons.insights_outlined),
     AdminNavItem(

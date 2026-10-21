@@ -1,0 +1,22 @@
+{
+  "//": "LOCAL INTEGRATION ONLY — dedicated ports so a developer's demo emulators keep running. Points at the strict production rules (the functions use the Admin SDK, so rules are not a variable here). Never deploy this file.",
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20",
+      "ignore": ["node_modules", ".git", "*.local"]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 9198 },
+    "firestore": { "port": 8188 },
+    "functions": { "port": 5111 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

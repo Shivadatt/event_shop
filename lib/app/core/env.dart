@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Build-time configuration. Nothing here is a secret at rest: values arrive through
 /// `--dart-define` and defaults are empty so an unconfigured build fails loudly instead of
 /// silently shipping placeholder credentials.
@@ -57,6 +59,11 @@ class Env {
   /// nobody wired a privileged key into the bundle.
   static const String _forbiddenKey = String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY');
 
+  /// The raw define, read only by `AppBootstrap`'s fail-fast guard and by its test. A build that
+  /// *did* pass it has already compiled the literal into `main.dart.js`, so refusing to expose a
+  /// getter would protect nothing — only refusing to boot does.
+  static String get supabaseServiceRoleKey => _forbiddenKey;
+
   static bool get hasFirebase =>
       firebaseApiKey.isNotEmpty && firebaseProjectId.isNotEmpty && firebaseAppId.isNotEmpty;
 
@@ -64,7 +71,39 @@ class Env {
 
   static bool get isFullyConfigured => hasFirebase && hasSupabase && !hasServiceRoleKeyInClient;
 
-  static bool get hasServiceRoleKeyInClient => _forbiddenKey.isNotEmpty;
+  /// True when this bundle carries a privileged Supabase credential — either deliberately through
+  /// `SUPABASE_SERVICE_ROLE_KEY`, or by accident in the `SUPABASE_ANON_KEY` slot, which is how it
+  /// actually happens: the dashboard shows both keys in one panel and a paste is invisible in a
+  /// `--dart-define` line. Enforced at bootstrap by `AppBootstrap.assertNoPrivilegedKeyInBundle`.
+  static bool get hasServiceRoleKeyInClient =>
+      _forbiddenKey.isNotEmpty || isPrivilegedClientKey(supabaseAnonKey);
+
+  /// Whether [key] names the service-role (secret) credential rather than the public one.
+  /// Recognises the current `sb_secret…` prefix and the legacy JWT form, whose payload is the only
+  /// place `role` appears — the token itself is base64url, so the word never shows up in clear.
+  static bool isPrivilegedClientKey(String key) {
+    final value = key.trim();
+    if (value.isEmpty) return false;
+    if (value.startsWith('sb_secret')) return true;
+    final payload = _jwtPayload(value);
+    return payload != null && payload['role'] == 'service_role';
+  }
+
+  static Map<String, Object?>? _jwtPayload(String jwt) {
+    final segments = jwt.split('.');
+    if (segments.length != 3) return null;
+    var payload = segments[1];
+    final padding = payload.length % 4;
+    if (padding != 0) payload += '=' * (4 - padding);
+    try {
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload)));
+      return decoded is Map ? Map<String, Object?>.from(decoded) : null;
+    } catch (_) {
+      // Not a decodable JWT, so there is no claim to assert against. Anything genuinely privileged
+      // still trips the checks above.
+      return null;
+    }
+  }
 
   static List<String> missingKeys() {
     final missing = <String>[];

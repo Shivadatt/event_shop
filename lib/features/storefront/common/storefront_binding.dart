@@ -16,9 +16,10 @@ final class StorefrontBinding extends Bindings {
     if (!get.isRegistered<CartStore>()) {
       get.put<CartStore>(CartStore(), permanent: true);
     }
-    // The public settings read belongs to Agent 3's backend binding; if it has not arrived,
-    // bind the unbound placeholder so `SettingsStore` fails with a real message instead of a
-    // silent default that looks like live data.
+    // `BackendBinding` registers the Firestore-backed reader whenever Firebase is configured. If
+    // nothing is registered, this store runs against a backend that does not exist, so bind the
+    // placeholder whose `load()` throws and `SettingsStore` reports that instead of quietly
+    // serving `StoreSettings.fallback` as if it were the live document.
     if (!get.isRegistered<StoreSettingsRepository>()) {
       get.lazyPut<StoreSettingsRepository>(
         UnboundStoreSettingsRepository.new,

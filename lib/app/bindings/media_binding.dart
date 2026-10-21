@@ -119,6 +119,12 @@ abstract final class MediaBindingStatus {
   static bool get firestoreConfigured => Env.hasFirebase;
   static String get summary => MediaConfig.statusMessage;
 
+  /// Both backends have their keys *and* this bundle carries no privileged Supabase credential.
+  /// The health card's single answer to "is this build even shippable" — the service-role half of
+  /// it is enforced at boot by `AppBootstrap.assertNoPrivilegedKeyInBundle`, so a false here means
+  /// the app never rendered in the first place.
+  static bool get isFullyConfigured => Env.isFullyConfigured;
+
   /// True when the bound repository can actually transfer bytes.
   static bool get canUpload {
     if (!Get.isRegistered<MediaRepository>()) return false;

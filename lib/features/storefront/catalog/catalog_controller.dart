@@ -34,6 +34,10 @@ class CatalogController extends GetxController with WishlistToggleMixin {
   final Rxn<OmFailure> failure = Rxn<OmFailure>();
   final RxSet<String> activeTags = <String>{}.obs;
 
+  /// Set once the first page has answered, successfully or not. Without it a category page drawn
+  /// before `ProductRepository.search` returns looks identical to a category with no products.
+  final RxBool hasLoaded = false.obs;
+
   bool get hasMore => nextCursor.value != null;
   bool get isEmpty => items.isEmpty;
 
@@ -93,6 +97,7 @@ class CatalogController extends GetxController with WishlistToggleMixin {
       nextCursor.value = page.nextCursor;
       totalEstimate.value = page.totalEstimate;
     }
+    hasLoaded.value = true;
     loadingFirst.value = false;
   }
 

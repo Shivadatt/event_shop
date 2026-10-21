@@ -1,0 +1,392 @@
+rules_version = '2';
+
+// OM Events security rules. These ARE the permission system: the client bundle, the SessionStore
+// mirror, and route guards are UX/defence-in-depth only. Money, stock, role, order status, payment
+// status, coupon definitions and review status can never be written by a browser — only Cloud
+// Functions (Admin SDK, which bypasses these rules) touch them.
+//
+// There is deliberately NO `allow write: if true` anywhere. The only two public writes are the
+// documented allow-listed creations below (wholesale applications and support requests), each with
+// field allow-lists and size caps.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- shared helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // The caller's own profile document. Every privilege decision reads the DOCUMENT, never a
+    // token claim, because claims are advisory mirrors the Admin SDK keeps in sync best-effort.
+    function me() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    function profileExists() {
+      return exists(/databases/$(database)/documents/users/$(uid()));
+    }
+
+    function notBlocked() {
+      return signedIn() && profileExists() && me().isBlocked != true;
+    }
+
+    function isStaff() {
+      return notBlocked() && me().role in ['staff', 'admin', 'owner'];
+    }
+
+    function isPricingAdmin() {
+      return notBlocked() && me().role in ['admin', 'owner'];
+    }
+
+    // Wholesale entitlement is a property of the PROFILE, never of a query the browser wrote:
+    // a wholesale-only product must not be enumerable by a retail shopper or an anonymous visitor.
+    function wholesaleBuyer() {
+      return notBlocked() && (me().role == 'wholesale' || me().wholesaleStatus == 'approved');
+    }
+
+    function seesWholesaleOnly() {
+      return wholesaleBuyer() || isStaff();
+    }
+
+    // A public "create" whose incoming document sets exactly the allowed scalar fields, within
+    // length caps, and cannot forge privileged fields. Used by the two intentional public writes.
+    //
+    // `keys().hasOnly(allowed)` is the create-side allow-list: `Map.diff()` takes a MAP, not the
+    // List this helper was given, and rules cannot iterate a callback. `hasOnly` rejects every key
+    // outside `allowed` while tolerating keys the writer chose to omit, which is what optional
+    // fields (address line2/gstNumber, wholesale email/gstNumber) require.
+    function onlyKeys(data, allowed) {
+      return data.keys().hasOnly(allowed);
+    }
+
+    // An absent optional field passes; a present field must be a string within the cap.
+    function maxLen(data, field, limit) {
+      return !(field in data) || (data[field] is string && data[field].size() <= limit);
+    }
+
+    // Rules have no lambda/list-iteration, so the bounded-field groups are spelled out. Field
+    // names and limits are unchanged from the previous boundedStrings() call sites.
+    function addressStrings(data) {
+      return maxLen(data, 'name', 300)
+        && maxLen(data, 'phone', 300)
+        && maxLen(data, 'line1', 300)
+        && maxLen(data, 'line2', 300)
+        && maxLen(data, 'city', 300)
+        && maxLen(data, 'state', 300)
+        && maxLen(data, 'pincode', 300);
+    }
+
+    function wholesaleStrings(data) {
+      return maxLen(data, 'companyName', 2000)
+        && maxLen(data, 'contactName', 2000)
+        && maxLen(data, 'phone', 2000)
+        && maxLen(data, 'email', 2000)
+        && maxLen(data, 'gstNumber', 2000)
+        && maxLen(data, 'address', 2000)
+        && maxLen(data, 'city', 2000)
+        && maxLen(data, 'state', 2000)
+        && maxLen(data, 'pincode', 2000)
+        && maxLen(data, 'reason', 2000)
+        && maxLen(data, 'expectedMonthlyVolume', 2000);
+    }
+
+    // ---------- users ----------
+    // Public read: none (profiles are personal). A signed-in, non-blocked user reads + updates
+    // ONLY their own document, and only the personal fields. Role, wholesale approval and isBlocked
+    // are function-owned and stripped here.
+    match /users/{userDoc} {
+      allow read: if signedIn() && (uid() == userDoc || isStaff());
+      // `accountEnsure` (callable, Admin SDK) is the only minter, so a client can never write its
+      // own role. Signup must therefore NOT `set()` this document first: see
+      // FirestoreAuthRepository.signUp, which creates the Auth account and then calls
+      // accountEnsure. A half-completed signup (Auth user exists, profile does not) self-heals,
+      // because accountEnsure creates-when-missing and the `users/{uid}` snapshot listener emits a
+      // provisional profile until it lands.
+      allow create: if false; // minted server-side by accountEnsure; never self-created
+      allow delete: if false;
+
+      // Cart-ish personal data a buyer owns: wishlist (bounded), display name, contact + notify
+      // prefs. Anything privileged in the incoming write is rejected by comparing unchanged fields.
+      allow update: if notBlocked() && uid() == userDoc
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'phone', 'gstNumber', 'companyName',
+                       'notifyEmail', 'notifyWhatsapp', 'notifySms',
+                       'wishlistProductIds', 'updatedAt'])
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.wholesaleStatus == resource.data.wholesaleStatus
+        && request.resource.data.isBlocked == resource.data.isBlocked
+        && request.resource.data.wishlistProductIds.size() <= 500;
+    }
+
+    // ---------- products / categories / prices: public READ of ACTIVE rows only ----------
+    // Prices and stock are read publicly (a storefront must show them), but no scalar here is a
+    // privileged write target: every write to products is staff-gated and cost/stock/counters are
+    // separately protected from the admin path.
+    //
+    // Wholesale-only rows are NOT public: they are the contracted catalogue of an approved buyer.
+    // Because rules are not a filter — a query whose constraints *could* match an unreadable row is
+    // denied in full — a retail/anonymous browse MUST carry
+    // `.where('isWholesaleOnly', isEqualTo: false)` (CatalogQueryBuilder adds it whenever the
+    // caller is not wholesale-entitled) and a direct `get()` of a wholesale-only product id answers
+    // permission-denied for a shopper. That is deliberate: the alternative (reading them anyway and
+    // hiding them in Dart) leaks price and stock to anyone who guesses an id.
+    match /products/{productId} {
+      allow read: if seesWholesaleOnly()
+        || (resource.data.status == 'active' && resource.data.isWholesaleOnly != true);
+      allow create, update, delete: if false;
+    }
+
+    // Product variants are readable only through their parent product being active or staff, and
+    // never expose cost price to the browser. This read is scoped in the repository to active
+    // products; rules cannot see the parent, so variants are staff-read + public-read via the
+    // denormalised copy on the product doc. Cost price stays admin-only.
+    //
+    // Because a rule cannot project fields away, a non-staff caller may NEVER issue a
+    // product_variants read (a doc `get()` included) — it would return `costPricePaise`. The public
+    // path is the `variantListForProduct` callable, which deletes that field server-side.
+    match /product_variants/{variantId} {
+      allow read: if isStaff();
+      allow create, update, delete: if false;
+    }
+
+    // Categories: storefront reads active rows publicly; staff reads all. Every write is
+    // function-only (adminCategorySave / adminCategoryDelete, which use the Admin SDK and so bypass
+    // these rules) — a browser may never create, edit or delete a category, and productCount stays
+    // trigger-owned.
+    match /categories/{categoryId} {
+      allow read: if resource.data.isActive == true || isStaff();
+      allow create, update, delete: if false;
+    }
+
+    // ---------- inventory: append-only ledger, read by staff, written only by functions ----------
+    match /inventory_movements/{movementId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /inventory_alerts/{alertId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // ---------- orders: the buyer owns theirs; staff sees all; status is function-only ----------
+    // There is deliberately NO anonymous read path on this collection.
+    //
+    // A guest "proof of purchase" lookup cannot be expressed in rules at all: rules cannot see the
+    // contact email the buyer typed (it is a value inside the document, not a query constraint the
+    // server can compare), an order number is a sequential counter and therefore enumerable, and
+    // order document ids are minted by a non-cryptographic generator (functions/lib/server.js
+    // `newId`), so "you already know the id" is not a capability either. The lookup therefore lives
+    // behind the `guestOrderLookup` callable, which compares orderNumber + contactEmail with the
+    // Admin SDK and returns a receipt for that single order.
+    //
+    // The clause removed here — `request.query.limit <= 1 && resource.data.isGuest == true` — let
+    // any unauthenticated caller run `where('isGuest','==',true).limit(1)`, page through guest
+    // orders, and read name, phone, delivery address and totals. The Dart-side email check in
+    // FirestoreOrderRepository was decoration: Firestore never sees it.
+    match /orders/{orderId} {
+      allow read: if (signedIn() && resource.data.userId == uid() && notBlocked())
+        || isStaff();
+      allow create, update, delete: if false; // every order mutation is a Cloud Function
+
+      match /history/{eventId} {
+        allow read: if (signedIn() && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == uid() && notBlocked()) || isStaff();
+        allow write: if false;
+      }
+    }
+
+    // ---------- payments: never client-writable, admin read ----------
+    match /payments/{paymentId} {
+      allow read: if isStaff() || (signedIn() && resource.data.uid == uid() && notBlocked());
+      allow write: if false;
+    }
+
+    // ---------- reviews: public read of published; the buyer writes via function; owner can
+    // report via the reviewReport function (which uses Admin SDK), not a direct client write ----
+    match /reviews/{reviewId} {
+      allow read: if resource.data.status == 'published' || isStaff() || (signedIn() && resource.data.uid == uid() && notBlocked());
+      allow create, update, delete: if false;
+    }
+
+    // ---------- coupons: definition is admin/function-only; the client reads a coupon only to
+    // render a quote result it received from couponsQuote, so no direct coupon read is needed ----
+    // `isPricingAdmin()` (admin/owner) is intentional and is the SAME set as Dart's
+    // UserRole.canEditPricing. A `staff` account gets permission-denied here and MUST be stopped
+    // before the query is issued (firestore_admin_repository.listCoupons), because Firestore denies
+    // the whole request rather than dropping rows — an unguarded bare `coupons_.get()` for a staff
+    // session surfaces as a red error banner, not as a clean "you cannot manage coupons".
+    match /coupons/{couponId} {
+      allow read: if isPricingAdmin();
+      allow write: if false;
+    }
+
+    match /coupon_redemptions/{redemptionId} {
+      allow read, write: if false;
+    }
+
+    // ---------- addresses: the owner's own book ----------
+    // Create and update are separate because `resource` does not exist during document creation,
+    // so the old conditional diff (`resource.data == null ? ...`) was itself an invalid dereference
+    // on create. Create validates the incoming uid and the full key set; update proves the caller
+    // owns the EXISTING document, pins uid, and restricts the changed keys. Both then apply the
+    // same 300-character caps. Fields match AddressBookEntry.toWriteMap() + touchCreate/Update:
+    // optional entries (line2, gstNumber) may be absent.
+    match /addresses/{addressId} {
+      allow read: if signedIn() && resource.data.uid == uid() && notBlocked();
+      allow create: if notBlocked()
+        && request.resource.data.uid == uid()
+        && onlyKeys(request.resource.data, [
+             'uid', 'name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode',
+             'gstNumber', 'isDefaultShipping', 'isDefaultBilling', 'isWorkAddress',
+             'createdAt', 'updatedAt'])
+        && addressStrings(request.resource.data);
+      allow update: if notBlocked()
+        && resource.data.uid == uid()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['uid', 'name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode',
+                       'gstNumber', 'isDefaultShipping', 'isDefaultBilling', 'isWorkAddress',
+                       'createdAt', 'updatedAt'])
+        && addressStrings(request.resource.data);
+      allow delete: if signedIn() && resource.data.uid == uid() && notBlocked();
+    }
+
+    // ---------- INTENTIONAL PUBLIC WRITE #1: wholesale applications ----------
+    // Any signed-in, non-blocked user may CREATE exactly one application, with only these scalar
+    // fields, forcing status=pending (they cannot approve themselves), uid == their own, and a size
+    // cap. Updates and deletes are function-only. The onWholesaleApplicationCreated trigger then
+    // flips the applicant's profile wholesaleStatus to 'pending' server-side.
+    //
+    // `onlyKeys` is an EXACT allow-list, not a superset check: the client must not add `updatedAt`.
+    // `touchCreate()` (firestore_collections.dart) writes createdAt AND updatedAt, so the wholesale
+    // path writes createdAt alone — the decision callable stamps updatedAt when an admin rules on
+    // the application. Widening this list instead would teach every future public writer that the
+    // allow-list is advisory.
+    match /wholesale_applications/{appId} {
+      allow read: if (signedIn() && resource.data.uid == uid() && notBlocked()) || isStaff();
+      allow create: if notBlocked()
+        && onlyKeys(request.resource.data, [
+             'uid', 'companyName', 'contactName', 'phone', 'email', 'gstNumber', 'address',
+             'city', 'state', 'pincode', 'reason', 'expectedMonthlyVolume', 'status', 'createdAt'])
+        && request.resource.data.uid == uid()
+        && request.resource.data.status == 'pending'
+        && wholesaleStrings(request.resource.data)
+        && request.resource.data.size() <= 20;
+      allow update, delete: if false; // decision is adminWholesaleDecide
+    }
+
+    // ---------- INTENTIONAL PUBLIC WRITE #2: support requests ----------
+    // Create: the owner opens a ticket. The messages array is capped at 100 and each element must
+    // be a plain scalar-bearing map the client authored for itself (isStaff can never be set true
+    // by a client write). Status may only ever be an OPEN-family value on a client update —
+    // resolved/closed/inProgress are staff/function-only.
+    //
+    // A customer-authored turn. Rules cannot iterate a list, so this schema check is applied to
+    // the exact element a customer write is allowed to append (create: the first message; update:
+    // the single appended message). `from` is pinned to the caller and `isStaff` to false, so the
+    // browser cannot mint a staff-looking turn. Staff turns (isStaff true) come from
+    // adminSupportUpdate, which uses the Admin SDK and bypasses these rules.
+    function customerMessage(message, ownerUid) {
+      return message is map
+        && message.keys().hasOnly(['from', 'body', 'at', 'isStaff'])
+        && message.from == ownerUid
+        && message.isStaff == false
+        && message.body is string
+        && message.at is timestamp;
+    }
+
+    match /support_requests/{ticketId} {
+      allow read: if (signedIn() && resource.data.uid == uid() && notBlocked()) || isStaff();
+      allow create: if notBlocked()
+        && onlyKeys(request.resource.data, [
+             'uid', 'subject', 'orderId', 'productId', 'topic', 'status', 'messages', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == uid()
+        && request.resource.data.status == 'open'
+        && maxLen(request.resource.data, 'subject', 200)
+        && request.resource.data.messages.size() <= 1
+        && (request.resource.data.messages.size() == 0
+            ? true
+            : customerMessage(request.resource.data.messages[0], uid()))
+        // `map.size()` counts ENTRIES, not bytes — the previous `<= 32 * 1024` was a cap of 32 768
+        // fields and guarded nothing. Entry count plus the per-field length caps are what rules can
+        // actually measure here; the message body cap lives in the ticket-reply path.
+        && request.resource.data.size() <= 12
+        && maxLen(request.resource.data, 'orderId', 64)
+        && maxLen(request.resource.data, 'productId', 64)
+        && maxLen(request.resource.data, 'topic', 64);
+      // Reply: the owner may append at most one message per write and can only move among the
+      // customer-writable states. Staff resolution happens through the adminSupportUpdate
+      // function. Rules cannot iterate the list, so the anti-spoof guarantee is:
+      //   * no growth  -> `messages` must not be touched at all (a same-size rewrite is rejected);
+      //   * one append -> the appended element (index == the previous size) must be the caller's
+      //     own turn with isStaff == false.
+      // A write that both appends and edits an older turn cannot be fully introspected without
+      // list iteration, but it still cannot forge the appended turn, and staff turns already in
+      // the thread no longer block a customer reply (the old lambda did).
+      allow update: if notBlocked()
+        && resource.data.uid == uid()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.status in ['open', 'inProgress', 'awaitingCustomer']
+        && request.resource.data.messages.size() <= 100
+        && request.resource.data.messages.size() >= resource.data.messages.size()
+        && request.resource.data.messages.size() <= resource.data.messages.size() + 1
+        && (request.resource.data.messages.size() == resource.data.messages.size()
+            ? !('messages' in request.resource.data.diff(resource.data).affectedKeys())
+            : customerMessage(request.resource.data.messages[resource.data.messages.size()], uid()))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'messages', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---------- notifications: read own, ack own ----------
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.uid == uid() && notBlocked();
+      allow create, delete: if false; // fan-out is function-only
+      // Ack is the only client write: flip isRead on the owner's own notification.
+      allow update: if notBlocked()
+        && resource.data.uid == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+    }
+
+    // ---------- store settings: public read (tax mode, shipping, policies shown to shoppers),
+    // write is function-only (adminSettingsSave) ----------
+    match /store_settings/{id} {
+      allow read: if true; // storefront must render tax/shipping/policies without auth
+      allow write: if false;
+    }
+
+    // ---------- audit logs: append-only, admin read, no client write ever ----------
+    match /audit_logs/{logId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // ---------- media objects: read with the catalogue, function/admin-managed ----------
+    match /media_objects/{mediaId} {
+      allow read: if true; // reference metadata (URL/alt) is public like the image itself
+      allow write: if false;
+    }
+
+    // ---------- customer price overrides: admin only, never a browser read (leaks contract price) --
+    match /customer_price_overrides/{overrideId} {
+      allow read, write: if false; // read is via functions that re-verify the caller
+    }
+
+    // ---------- counters + idempotency: internal, no client access ----------
+    match /counters/{counterId} {
+      allow read, write: if false;
+    }
+    match /idempotency_keys/{key} {
+      allow read, write: if false;
+    }
+
+    // Default deny for anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

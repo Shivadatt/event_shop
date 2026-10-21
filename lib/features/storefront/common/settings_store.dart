@@ -5,9 +5,10 @@ import 'package:om_events/data/models/store_settings.dart';
 /// Public read of the singleton `store_settings/{store}` document.
 ///
 /// `AdminRepository.settings()` is staff-gated, but the storefront needs shop identity,
-/// policies, zones and payment methods for every visitor. Agent 3 binds the real implementation
-/// in `BackendBinding`; until something is registered, `SettingsStore` shows this honest failure
-/// instead of inventing a store.
+/// policies, zones and payment methods for every visitor. `BackendBinding` registers the Firestore
+/// implementation when Firebase is configured; where it is not, `StorefrontBinding` registers
+/// [UnboundStoreSettingsRepository] so `SettingsStore` shows an honest failure instead of
+/// inventing a store.
 abstract interface class StoreSettingsRepository {
   Future<StoreSettings> load();
 }
@@ -37,6 +38,10 @@ final class SettingsStore extends GetxService {
   final Rxn<OmFailure> failure = Rxn<OmFailure>();
   final RxBool loading = false.obs;
 
+  /// Set once a `load()` has answered either way, so a view can tell "still asking the backend"
+  /// from "the backend said no" instead of falling through to the tokenised defaults.
+  final RxBool hasLoaded = false.obs;
+
   StoreSettingsRepository get _repository =>
       _injected ?? Get.find<StoreSettingsRepository>();
 
@@ -57,6 +62,7 @@ final class SettingsStore extends GetxService {
       failure.value = const ServerFailure();
     } finally {
       loading.value = false;
+      hasLoaded.value = true;
     }
   }
 

@@ -219,39 +219,47 @@ final class OmErrorState extends StatelessWidget {
 
 /// One place to decide "loading, error, empty, or content". Screens that hand-roll four
 /// if-branches drift; this one does not.
+///
+/// [hasLoaded] is what separates "the backend has not answered yet" from "the backend answered with
+/// nothing", and it is why `OmEmptyState` never appears as a first frame: a request that neither
+/// succeeded nor failed would otherwise masquerade as an empty store. Content outranks the failure
+/// and the spinner, so a background refresh that keeps the rows already on screen does not wipe
+/// them.
 final class OmStateView<T> extends StatelessWidget {
   const OmStateView({
     super.key,
+    required this.hasLoaded,
     required this.value,
-    required this.loading,
-    required this.error,
     required this.builder,
-    this.isEmpty,
+    this.loading = false,
+    this.isEmpty = false,
+    this.failure,
+    this.onRetry,
     this.empty,
     this.skeleton,
     this.compact = false,
   });
 
-  final T? value;
+  final bool hasLoaded;
   final bool loading;
-  final OmFailure? error;
+  final T? value;
+  final bool isEmpty;
+  final OmFailure? failure;
+  final VoidCallback? onRetry;
   final Widget Function(BuildContext context, T value) builder;
-  final bool? isEmpty;
   final Widget? empty;
   final Widget? skeleton;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    if (loading && value == null) return skeleton ?? const OmLoading();
-    final err = error;
-    if (err != null && value == null) {
-      return OmErrorState(failure: err, compact: compact);
-    }
     final data = value;
-    if (data == null || (isEmpty ?? false)) {
-      return empty ?? OmEmptyState(title: 'Nothing here yet', compact: compact);
+    if (data != null && !isEmpty) return builder(context, data);
+    final error = failure;
+    if (error != null) {
+      return OmErrorState(failure: error, onRetry: onRetry, compact: compact);
     }
-    return builder(context, data);
+    if (loading || !hasLoaded) return skeleton ?? const OmLoading();
+    return empty ?? OmEmptyState(title: 'Nothing here yet', compact: compact);
   }
 }

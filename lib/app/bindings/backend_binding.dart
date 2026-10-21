@@ -10,8 +10,10 @@ import 'package:om_events/data/repositories/firestore/firestore_admin_repository
 import 'package:om_events/data/repositories/firestore/firestore_auth_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_catalog_repository.dart';
 import 'package:om_events/data/repositories/firestore/firestore_order_repository.dart';
+import 'package:om_events/data/repositories/firestore/firestore_store_settings_repository.dart';
 import 'package:om_events/data/repositories/firestore/unconfigured_backend.dart';
 import 'package:om_events/data/repositories/order_repository.dart';
+import 'package:om_events/features/storefront/common/settings_store.dart';
 
 /// Agent 3 owns this file: the single place repository *implementations* are bound. Everything else
 /// depends on the abstract types and never imports a Firestore class.
@@ -40,8 +42,8 @@ final class BackendBinding extends Bindings {
   void _bindLive() {
     final session = Get.find<SessionStore>();
     _lazyPut<AuthRepository>(() => FirestoreAuthRepository(session));
-    _lazyPut<ProductRepository>(FirestoreProductRepository.new);
-    _lazyPut<CategoryRepository>(FirestoreCategoryRepository.new);
+    _lazyPut<ProductRepository>(() => FirestoreProductRepository(session));
+    _lazyPut<CategoryRepository>(() => FirestoreCategoryRepository(session));
     _lazyPut<VariantRepository>(() => FirestoreVariantRepository(session));
     _lazyPut<CouponRepository>(FirestoreCouponRepository.new);
     _lazyPut<OrderRepository>(() => FirestoreOrderRepository(session));
@@ -51,9 +53,16 @@ final class BackendBinding extends Bindings {
     _lazyPut<ReviewRepository>(() => FirestoreAccountRepository(session));
     _lazyPut<AccountRepository>(() => FirestoreAccountRepository(session));
     _lazyPut<AdminRepository>(FirestoreAdminRepository.new);
+    // Store settings are the one staff-gated collection the whole storefront has to read, so the
+    // public repository is bound beside the admin one and `StorefrontBinding` never has to fall
+    // back to the throwing placeholder.
+    _lazyPut<StoreSettingsRepository>(FirestoreStoreSettingsRepository.new);
   }
 
   void _bindUnconfigured() {
+    // No `StoreSettingsRepository` is registered on purpose: `StorefrontBinding` then binds the
+    // placeholder whose `load()` throws, so an unconfigured build reports "not connected to a
+    // backend" rather than rendering the empty fallback as if it were the store's real config.
     _lazyPut<AuthRepository>(UnconfiguredAuthRepository.new);
     _lazyPut<ProductRepository>(UnconfiguredProductRepository.new);
     _lazyPut<CategoryRepository>(UnconfiguredCategoryRepository.new);

@@ -86,9 +86,19 @@ final class _CategoryResolver {
 /// Reads the public product catalogue. Wholesale entitlement and cost-price visibility are threaded
 /// through so retail shoppers never receive wholesale-only rows.
 final class FirestoreProductRepository implements ProductRepository {
-  FirestoreProductRepository() : _resolver = _CategoryResolver();
+  FirestoreProductRepository([SessionStore? session])
+      : _session = session ?? SessionStore(),
+        _resolver = _CategoryResolver();
 
+  final SessionStore _session;
   final _CategoryResolver _resolver;
+
+  /// Retail/anonymous callers must constrain `isWholesaleOnly == false` in every product query:
+  /// `firestore.rules` allows a non-entitled caller only active, non-wholesale rows, and Firestore
+  /// denies a whole list query that could match a row the rule denies. Wholesale buyers and staff
+  /// are entitled to the wider active set, so their queries stay unconstrained.
+  Query<Map<String, dynamic>> _visible(Query<Map<String, dynamic>> q) =>
+      _session.hasWholesalePricing ? q : q.where('isWholesaleOnly', isEqualTo: false);
 
   @override
   Future<Product> byId(String id) async {
@@ -99,9 +109,9 @@ final class FirestoreProductRepository implements ProductRepository {
 
   @override
   Future<Product> bySlug(String slug) async {
-    final snap = await Collections.products_
-        .where('slug', isEqualTo: slug)
-        .where('status', isEqualTo: ProductStatus.active.code)
+    final snap = await _visible(Collections.products_
+            .where('slug', isEqualTo: slug)
+            .where('status', isEqualTo: ProductStatus.active.code))
         .limit(1)
         .get();
     if (snap.docs.isEmpty) throw const NotFoundFailure('That product page could not be found.');
@@ -110,9 +120,9 @@ final class FirestoreProductRepository implements ProductRepository {
 
   @override
   Future<Product> bySku(String sku) async {
-    final snap = await Collections.products_
-        .where('sku', isEqualTo: sku)
-        .where('status', isEqualTo: ProductStatus.active.code)
+    final snap = await _visible(Collections.products_
+            .where('sku', isEqualTo: sku)
+            .where('status', isEqualTo: ProductStatus.active.code))
         .limit(1)
         .get();
     if (snap.docs.isEmpty) throw const NotFoundFailure('No product with that SKU.');
@@ -126,7 +136,10 @@ final class FirestoreProductRepository implements ProductRepository {
     // Firestore caps `in` at 30 values, so ids are chunked.
     for (var i = 0; i < ids.length; i += 30) {
       final chunk = ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30);
-      final snap = await Collections.products_.where(FieldPath.documentId, whereIn: chunk).get();
+      final snap = await _visible(Collections.products_
+              .where(FieldPath.documentId, whereIn: chunk)
+              .where('status', isEqualTo: ProductStatus.active.code))
+          .get();
       out.addAll(FirestoreConverters.products(snap.docs));
     }
     return out;
@@ -134,8 +147,10 @@ final class FirestoreProductRepository implements ProductRepository {
 
   @override
   Future<PagedResult<Product>> search(CatalogQuery query) async {
-    final categoryIds = await _resolver.resolveCategoryIds(query);
-    final effective = _resolver.clearSlugIfUsingIds(query, categoryIds);
+    // A retail caller's filter can never widen the catalogue; force the rule-mandated constraint.
+    final scoped = _session.hasWholesalePricing ? query : query.copyWith(wholesaleOnly: false);
+    final categoryIds = await _resolver.resolveCategoryIds(scoped);
+    final effective = _resolver.clearSlugIfUsingIds(scoped, categoryIds);
     final q = CatalogQueryBuilder.build(effective, categoryIds: categoryIds);
     final snap = await q.limit(query.pageSize + 1).get();
     return _page(snap, effective);
@@ -143,11 +158,14 @@ final class FirestoreProductRepository implements ProductRepository {
 
   @override
   Stream<PagedResult<Product>> watchSearch(CatalogQuery query) {
-    final effective = _resolver.clearSlugIfUsingIds(query, const <String>[]);
+    // Same rule-mandated scope as `search`: a retail listener that could match a wholesale-only
+    // row is rejected outright, so the constraint has to be in the query, not just the client filter.
+    final scoped = _session.hasWholesalePricing ? query : query.copyWith(wholesaleOnly: false);
+    final effective = _resolver.clearSlugIfUsingIds(scoped, const <String>[]);
     // A watch is always the first page of its own filter set, so the cursor is dropped: `copyWith()`
     // with no argument clears it (its `cursor` parameter already defaults to null), and `build` takes
     // no descendant ids here for the same reason the resolver above is handed an empty list.
-    final q = CatalogQueryBuilder.build(query.copyWith()).limit(query.pageSize + 1);
+    final q = CatalogQueryBuilder.build(scoped.copyWith()).limit(query.pageSize + 1);
     return q.snapshots().map((snap) => _page(snap, effective));
   }
 
@@ -189,9 +207,9 @@ final class FirestoreProductRepository implements ProductRepository {
   }
 
   Future<List<Product>> _flagged(String flag, int limit, {required String secondary, bool descending = false}) async {
-    final snap = await Collections.products_
-        .where('status', isEqualTo: ProductStatus.active.code)
-        .where(flag, isEqualTo: true)
+    final snap = await _visible(Collections.products_
+            .where('status', isEqualTo: ProductStatus.active.code)
+            .where(flag, isEqualTo: true))
         .orderBy(secondary, descending: descending)
         .limit(limit)
         .get();
@@ -200,9 +218,9 @@ final class FirestoreProductRepository implements ProductRepository {
 
   @override
   Future<List<Product>> relatedTo(Product product, {int limit = 8}) async {
-    final snap = await Collections.products_
-        .where('status', isEqualTo: ProductStatus.active.code)
-        .where('categoryId', isEqualTo: product.categoryId)
+    final snap = await _visible(Collections.products_
+            .where('status', isEqualTo: ProductStatus.active.code)
+            .where('categoryId', isEqualTo: product.categoryId))
         .orderBy('soldCount', descending: true)
         .limit(limit + 1)
         .get();
@@ -216,11 +234,11 @@ final class FirestoreProductRepository implements ProductRepository {
   Future<List<String>> suggestions(String term, {int limit = 8}) async {
     final trimmed = term.trim();
     if (trimmed.isEmpty) return const <String>[];
-    final snap = await Collections.products_
-        .where('status', isEqualTo: ProductStatus.active.code)
+    final snap = await _visible(Collections.products_
+            .where('status', isEqualTo: ProductStatus.active.code)
+            .where('name', isGreaterThanOrEqualTo: trimmed.toUpperCase())
+            .where('name', isLessThanOrEqualTo: '${trimmed.toUpperCase()}\uf8ff'))
         .orderBy('name')
-        .where('name', isGreaterThanOrEqualTo: trimmed.toUpperCase())
-        .where('name', isLessThanOrEqualTo: '${trimmed.toUpperCase()}\uf8ff')
         .limit(limit)
         .get();
     return FirestoreConverters.products(snap.docs).map((p) => p.name).toList(growable: false);
@@ -245,8 +263,11 @@ final class FirestoreProductRepository implements ProductRepository {
 }
 
 final class FirestoreCategoryRepository implements CategoryRepository {
-  FirestoreCategoryRepository() : _resolver = _CategoryResolver();
+  FirestoreCategoryRepository([SessionStore? session])
+      : _session = session ?? SessionStore(),
+        _resolver = _CategoryResolver();
 
+  final SessionStore _session;
   final _CategoryResolver _resolver;
 
   @override
@@ -261,7 +282,14 @@ final class FirestoreCategoryRepository implements CategoryRepository {
 
   @override
   Future<Category> bySlug(String slug) async {
-    final snap = await Collections.categories_.where('slug', isEqualTo: slug).limit(1).get();
+    // Rules expose only active categories to shoppers, so a list query must say so or Firestore
+    // denies it outright. Staff may read inactive rows too, and the admin slug-uniqueness check
+    // depends on seeing them.
+    Query<Map<String, dynamic>> query = Collections.categories_.where('slug', isEqualTo: slug);
+    if (!_session.role.canManageStore) {
+      query = query.where('isActive', isEqualTo: true);
+    }
+    final snap = await query.limit(1).get();
     if (snap.docs.isEmpty) throw const NotFoundFailure('That category does not exist.');
     return FirestoreConverters.category(snap.docs.first);
   }

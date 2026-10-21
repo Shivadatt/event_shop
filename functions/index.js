@@ -40,6 +40,12 @@ const {
 } = require('./lib/server');
 
 const pricing = require('./lib/pricing');
+const { toMillis } = require('./lib/coerce');
+const { keyPointsToOwnedOrder, mayReadReplay, mayReplayCreatedOrder, receiptFromOrder, REPLAY_REFUSED } = require('./lib/order_access');
+// F2/F3/F4: the coupon, shipping, pincode and price-agreement rules come from lib/checkout.js instead
+// of being re-implemented below. `couponsQuote` (the preview) and `ordersCreate` (the charge) must not
+// be able to disagree about what a cart costs or whether a pincode is deliverable.
+const { couponDiscount, shippingFor, totalsToReceipt, isValidPincode, priceAgreement } = require('./lib/checkout');
 
 setGlobalOptions({ region: REGION, maxInstances: 10 });
 
@@ -68,61 +74,19 @@ function buyerMaySeeWholesale(profile) {
   return profile.role === 'wholesale' || profile.wholesaleStatus === 'approved';
 }
 
-// ---- coupon arithmetic, mirroring the Dart Coupon model ----------------------------------------
-function couponIsRedeemable(coupon, now) {
-  if (!coupon || coupon.isActive === false) return false;
-  const usageLimit = coupon.usageLimit;
-  if (usageLimit != null && toInt(coupon.usedCount) >= usageLimit) return false;
-  const startsAt = coupon.startsAt;
-  const endsAt = coupon.endsAt;
-  if (startsAt && now < startsAt) return false;
-  if (endsAt && now > endsAt) return false;
-  return true;
-}
-
-// Mirrors Coupon.discountFor + scope + minQty + excludesWholesale. Eligible subtotal is the only
-// slice of the cart the coupon applies to, so category/product scoped coupons never touch the rest.
-function couponDiscount(coupon, pricedLines, { wholesale, cartUnits, now }) {
-  if (!couponIsRedeemable(coupon, now)) return { discountPaise: 0, freeShipping: false, reason: 'This code is no longer valid.' };
-  if (coupon.excludesWholesale === true && wholesale) return { discountPaise: 0, freeShipping: false, reason: 'This code cannot be combined with wholesale pricing.' };
-  if (cartUnits < toInt(coupon.minQty, 1)) return { discountPaise: 0, freeShipping: false, reason: `Minimum quantity ${toInt(coupon.minQty, 1)} required.` };
-
-  const cats = Array.isArray(coupon.appliesToCategoryIds) ? coupon.appliesToCategoryIds : [];
-  const prods = Array.isArray(coupon.appliesToProductIds) ? coupon.appliesToProductIds : [];
-  const eligible = pricedLines
-    .filter((line) => cats.length === 0 && prods.length === 0
-      ? true
-      : cats.includes(line.categoryId) || prods.includes(line.productId))
-    .reduce((sum, line) => sum + line.lineTotalPaise, 0);
-
-  if (eligible < toInt(coupon.minCartValuePaise)) return { discountPaise: 0, freeShipping: false, reason: `Add items worth more to use this code.` };
-
-  const kind = coupon.kind;
-  let raw = 0;
-  if (kind === 'percentage') raw = Math.round((eligible * toInt(coupon.percentOff)) / 100);
-  else if (kind === 'flat') raw = Math.min(Math.max(toInt(coupon.valuePaise), 0), eligible);
-  else if (kind === 'freeShipping') raw = 0;
-  const cap = coupon.maxDiscountPaise;
-  if (cap != null) raw = Math.min(Math.max(raw, 0), cap);
-  return { discountPaise: raw, freeShipping: kind === 'freeShipping', reason: '' };
-}
-
-// ---- shipping from store_settings zones --------------------------------------------------------
-function shippingFor(settings, { deliveryMode, pincode, subtotalPaise, freeShippingCoupon }) {
-  if (deliveryMode === 'pickup') return 0;
-  if (freeShippingCoupon) return 0;
-  const zones = Array.isArray(settings.shippingZones) ? settings.shippingZones : [];
-  const zone = zones.find((z) => z.isActive !== false && Array.isArray(z.pincodePrefixes) && z.pincodePrefixes.some((p) => String(pincode || '').startsWith(p)));
-  const freeAbove = settings.freeShippingAbovePaise;
-  if (!zone) {
-    // A global free-shipping threshold still applies even when no zone matched the pincode.
-    if (freeAbove != null && subtotalPaise >= toInt(freeAbove)) return 0;
-    return -1; // sentinel: unserviceable
-  }
-  if (zone.freeAbovePaise != null && subtotalPaise >= toInt(zone.freeAbovePaise)) return 0;
-  if (freeAbove != null && subtotalPaise >= toInt(freeAbove)) return 0;
-  return toInt(zone.flatRatePaise);
-}
+// ---- coupon + shipping rules: imported from lib/checkout.js -----------------------------------
+// They used to be duplicated here, and the duplicates were wrong in three ways that are now fixed by
+// importing instead of editing twice:
+//   * `now < coupon.startsAt` compared a millisecond NUMBER against a Firestore Timestamp OBJECT, so
+//     NaN made both window guards silently pass and an expired or not-yet-started coupon still
+//     discounted (F2);
+//   * a free-shipping COUPON was honoured before the zone table was consulted, so an address the
+//     store cannot deliver to produced shipping 0 instead of the unserviceable refusal (F3);
+//   * the eligible-subtotal reduce read raw line values where the shared helper coerces through
+//     `toInt`, and `zoneCovers` called `.startsWith` on a raw prefix.
+// Money stays integer paise; `couponDiscount`/`shippingFor` never throw — index.js decides the
+// HttpsError. The Dart client keeps its own copies of these rules, and that parity is NOT fixture-pinned
+// (slab_fixtures.json has no coupon or shipping cases), so it is asserted on the server side only.
 
 // =================================================================================================
 // ORDERS — the trusted create path
@@ -174,10 +138,26 @@ exports.ordersCreate = onCall(async (request) => {
       // ---- idempotency lock: a replayed key returns the already-created order, never a 2nd charge
       const idem = await tx.get(idemRef);
       if (idem.exists) {
-        const existingId = idem.data().orderId;
-        const existing = await tx.get(db.collection('orders').doc(existingId));
-        if (!existing.exists) fail('internal', 'Idempotency record points at a missing order.');
-        return { replay: true, order: existing.data(), orderId: existingId };
+        const keyRecord = idem.data() || {};
+        const existingId = typeof keyRecord.orderId === 'string' ? keyRecord.orderId : '';
+        // A blank id must not reach `doc('')`: Firestore rejects it, and that rejection would tell a
+        // caller more about the key than the uniform refusal below is willing to reveal.
+        const existing = existingId ? await tx.get(db.collection('orders').doc(existingId)) : null;
+        const existingData = existing && existing.exists ? existing.data() : null;
+        // F1: the key is not a bearer token. Ledger row, order document and caller must all agree
+        // (lib/order_access.js), and a guest retry has to re-supply the order's own contact detail.
+        // Refusing here throws, which aborts the transaction: nothing is reserved and no second order
+        // is minted under somebody else's key.
+        if (!mayReplayCreatedOrder({
+          keyRecord,
+          orderData: existingData,
+          callerUid: uid,
+          contactEmail: draft.contactEmail,
+          contactPhone: draft.contactPhone,
+        })) {
+          fail('permission-denied', REPLAY_REFUSED);
+        }
+        return { replay: true, order: existingData, orderId: existingId };
       }
 
       // ---- re-price EVERY line from persisted slabs (never trust a client price)
@@ -206,8 +186,12 @@ exports.ordersCreate = onCall(async (request) => {
           const d = o.data();
           if (d.productId !== productId) return false;
           if ((d.variantId || null) !== variantId) return false;
-          const expiresAt = d.expiresAt;
-          if (expiresAt && typeof expiresAt.toMillis === 'function' && expiresAt.toMillis() < now) return false;
+          // F2: same instant-coercion as every other window in the system. `toMillis` accepts a
+          // Firestore Timestamp, a Date, epoch millis or an ISO string, and returns null when there is
+          // no constraint. The old `typeof expiresAt.toMillis === 'function'` test quietly treated an
+          // ISO string (what a callable payload carries) as "never expires".
+          const expiresAt = toMillis(d.expiresAt);
+          if (expiresAt != null && expiresAt < now) return false;
           return true;
         });
         const overridePaise = match && toInt(match.data().unitPricePaise) > 0 ? toInt(match.data().unitPricePaise) : null;
@@ -259,6 +243,9 @@ exports.ordersCreate = onCall(async (request) => {
       let couponResult = { discountPaise: 0, freeShipping: false, reason: '' };
       let couponRef = null;
       let redemptionRef = null;
+      // Captured from the pre-write read below and reused when the redemption is written: a second
+      // tx.get after tx.update would be a read-after-write and abort the whole transaction.
+      let redemptionExistingCount = 0;
       if (couponCode) {
         if (!couponSnap.exists) couponResult = { discountPaise: 0, freeShipping: false, reason: 'Unknown coupon code.' };
         else {
@@ -271,17 +258,24 @@ exports.ordersCreate = onCall(async (request) => {
             redemptionRef = db.collection('coupon_redemptions').doc(`${couponCode}__${userKey}`);
             const limit = toInt(coupon.perUserLimit, 1);
             const existing = await tx.get(redemptionRef);
-            if (existing.exists && toInt(existing.data().count) >= limit) {
+            redemptionExistingCount = existing.exists ? toInt(existing.data().count) : 0;
+            if (existing.exists && redemptionExistingCount >= limit) {
               couponResult = { discountPaise: 0, freeShipping: false, reason: 'You have already used this code.' };
             }
           }
         }
       }
 
-      // ---- shipping
+      // ---- shipping (F3: serviceability is decided by the zone table BEFORE any free-shipping rule)
       const subtotal = priced.reduce((s, l) => s + l.lineTotalPaise, 0);
+      const pincode = shipping ? String(shipping.pincode || '').trim() : '';
+      // A courier order needs a pincode the zone table can even be asked about. A blank one used to
+      // match no zone and then fall through to the store-wide free-shipping threshold, which accepted
+      // an order with no deliverable address and shipping 0. The client validates the same shape
+      // (OmValidators.pincode) before submit; this closes the server-side hole.
+      if (deliveryMode !== 'pickup' && !isValidPincode(pincode)) fail('invalid-argument', 'Enter a valid 6-digit delivery pincode.');
       const shipPaise = shippingFor(settings, {
-        deliveryMode, pincode: shipping ? shipping.pincode : '', subtotalPaise: subtotal,
+        deliveryMode, pincode, subtotalPaise: subtotal,
         freeShippingCoupon: couponResult.freeShipping,
       });
       if (shipPaise < 0) fail('failed-precondition', 'We do not deliver to this pincode yet.', { code: 'UNSERVICEABLE' });
@@ -297,11 +291,20 @@ exports.ordersCreate = onCall(async (request) => {
         },
       );
 
-      // ---- epsilon check: reject a client total that drifted beyond display rounding. Transaction
-      // throw aborts, so no stock is reserved on a rejected attempt.
-      if (clientTotalPaise > 0 && Math.abs(clientTotalPaise - totals.grandTotalPaise) > PRICE_EPSILON_PAISE) {
+      // ---- F4: epsilon check, compared like-for-like. The buyer's cart shows the RUPEE-ROUNDED
+      // payable (`totals.payableRoundedPaise`, which is also the amount stored and charged), and
+      // `OrderDraft` sends exactly that figure. Comparing it against the UNROUNDED grand total spent
+      // up to 99 paise of the 100-paise budget on rounding alone, leaving ~1 paise for real drift.
+      // The epsilon is deliberately NOT widened to compensate.
+      const agreement = priceAgreement(clientTotalPaise, totals, PRICE_EPSILON_PAISE);
+      if (!agreement.ok) {
         fail('failed-precondition', 'The order total changed. Please review and confirm.', {
-          code: 'PRICE_CHANGED', serverGrandTotalPaise: totals.grandTotalPaise, clientTotalPaise,
+          code: 'PRICE_CHANGED',
+          serverGrandTotalPaise: totals.grandTotalPaise,
+          serverPayableRoundedPaise: agreement.chargedPaise,
+          clientTotalPaise,
+          diffPaise: agreement.diffPaise,
+          epsilonPaise: agreement.epsilonPaise,
         });
       }
 
@@ -312,6 +315,10 @@ exports.ordersCreate = onCall(async (request) => {
       const counterSnap = await tx.get(counterRef);
       const seq = toInt(counterSnap.exists ? counterSnap.data().value : 0) + 1;
       const number = orderNumber(settings.invoicePrefix || 'OME', year, seq);
+      // Persist the sequence in the same transaction as the order. Without this write every order in
+      // the month read value=0 and minted the identical OME-YYYY-000001; concurrent creates serialize
+      // on this document, so a retry re-reads the winner's value before minting the next number.
+      tx.set(counterRef, { value: seq, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
       const paymentStatus = paymentMethod === 'cod' ? 'codPending' : paymentMethod === '' ? 'pending' : 'pending';
       const createdAt = FieldValue.serverTimestamp();
@@ -377,8 +384,7 @@ exports.ordersCreate = onCall(async (request) => {
       if (couponResult.discountPaise > 0 || couponResult.freeShipping) {
         tx.update(couponRef, { usedCount: FieldValue.increment(1), updatedAt: createdAt });
         if (redemptionRef) {
-          const existing = await tx.get(redemptionRef);
-          tx.set(redemptionRef, { couponCode, uid: uid || null, count: toInt(existing.exists ? existing.data().count : 0) + 1, updatedAt: createdAt }, { merge: true });
+          tx.set(redemptionRef, { couponCode, uid: uid || null, count: redemptionExistingCount + 1, updatedAt: createdAt }, { merge: true });
         }
       }
 
@@ -397,8 +403,10 @@ exports.ordersCreate = onCall(async (request) => {
     });
 
     if (result.replay) {
-      const o = result.order;
-      return receiptFromOrder(o, { wasReplay: true });
+      // The id comes from the transaction (`existingId`), never from the stored document: Firestore
+      // document data has no `id` field, so the old `o.id || ''` always answered `orderId: ''` —
+      // which left the Dart review step unable to load, accept or decline the order it just found.
+      return receiptFromOrder(result.order, result.orderId, { wasReplay: true });
     }
 
     // Buyer notification (best-effort, outside the money transaction).
@@ -432,34 +440,35 @@ function primaryImage(product) {
   const prim = images.find((i) => i && i.isPrimary);
   return (prim || images[0] || {}).url || '';
 }
-function totalsToReceipt(t) {
-  return {
-    subtotalPaise: t.subtotalPaise, slabDiscountPaise: t.slabSavingsPaise, couponDiscountPaise: t.couponDiscountPaise,
-    shippingPaise: t.shippingPaise, taxPaise: t.taxPaise, roundingPaise: t.payableRoundedPaise - t.grandTotalPaise,
-    // grandTotalPaise on the wire is the rupee-rounded amount the customer is charged, matching the
-    // stored document and replay receipts; roundingPaise stays informational.
-    grandTotalPaise: t.payableRoundedPaise, paidPaise: 0, refundedPaise: 0,
-  };
-}
-function receiptFromOrder(o, { wasReplay }) {
-  return {
-    orderId: o.id || '', orderNumber: o.orderNumber, totals: o.totals, paymentStatus: o.paymentStatus,
-    orderStatus: o.status, paymentClientSecret: '', paymentUrl: '', wasReplay: wasReplay || false,
-    priceChanged: false, message: wasReplay ? 'This order already exists.' : '',
-  };
-}
+// `totalsToReceipt` (the fresh-create receipt wire shape) and `couponDiscount`/`shippingFor` come from
+// lib/checkout.js; `receiptFromOrder` and every replay-ownership rule come from lib/order_access.js.
+// Both modules are Firebase-free, so `npm test` asserts the real rules with no emulator and no
+// deployed backend. Nothing in index.js re-implements them a second time.
 
 // ---- idempotent replay lookup for the Dart retry path -----------------------------------------
+// An idempotency key is NOT a capability: guessing one must never reveal another buyer's receipt,
+// and a guest order has no account to check against. Both cases answer the identical
+// `{ found: false }`, so this call cannot be used to confirm that a key exists, and no guest PII
+// (contactEmail / contactPhone / shipping address inside `totals`+items) ever crosses the wire.
 exports.orderByIdempotency = onCall(async (request) => {
   return guarded(async () => {
-    await requireCaller(request);
+    const caller = await requireCaller(request);
     const key = String((request.data || {}).idempotencyKey || '');
     if (!key) fail('invalid-argument', 'Missing idempotency key.');
     const snap = await db.collection('idempotency_keys').doc(key).get();
+    // A missing key, someone else's key, a guest-placed key and a vanished order all answer the
+    // identical `{ found: false }` — this call cannot confirm that a key exists.
     if (!snap.exists) return { found: false };
-    const order = await db.collection('orders').doc(snap.data().orderId).get();
-    if (!order.exists) return { found: false };
-    return { found: true, receipt: receiptFromOrder(order.data(), { wasReplay: true }) };
+    const idem = snap.data() || {};
+    // Pre-gate on the ledger row so a guessed key never costs an order read (these callables have
+    // no rate limiting yet).
+    if (!keyPointsToOwnedOrder({ keyRecord: idem, callerUid: caller.uid })) return { found: false };
+    const orderId = idem.orderId;
+    const order = await db.collection('orders').doc(orderId).get();
+    const data = order.exists ? order.data() || {} : null;
+    // Final gate: the order document must agree with the ledger before a receipt crosses the wire.
+    if (!mayReadReplay({ keyRecord: idem, orderData: data, callerUid: caller.uid })) return { found: false };
+    return { found: true, receipt: receiptFromOrder(data, orderId, { wasReplay: true }) };
   });
 });
 
@@ -517,6 +526,22 @@ async function transitionStatus(ref, { from, to, actor, note, restoreStock, canc
     if (!snap.exists) fail('not-found', 'Order not found.');
     const current = snap.data().status;
     if (current !== from) fail('failed-precondition', `Order status changed concurrently (now ${current}).`);
+    const items = Array.isArray(snap.data().items) ? snap.data().items : [];
+
+    // Firestore rejects tx.get after the first write, so read every restore target up front and
+    // apply the plan below. Doing the read inside the restore loop (after tx.update(ref)) aborted
+    // every cancellation with `reads before writes`.
+    const restorePlan = [];
+    if (restoreStock) {
+      for (const item of items) {
+        if (item.isStockDeducted !== true) continue;
+        const stockRef = item.variantId
+          ? db.collection('product_variants').doc(String(item.variantId))
+          : db.collection('products').doc(String(item.productId));
+        restorePlan.push({ item, qty: toInt(item.qty), stockRef, stockSnap: await tx.get(stockRef) });
+      }
+    }
+
     const update = {
       status: to,
       updatedAt: FieldValue.serverTimestamp(),
@@ -529,25 +554,24 @@ async function transitionStatus(ref, { from, to, actor, note, restoreStock, canc
     });
 
     if (restoreStock) {
-      const items = Array.isArray(snap.data().items) ? snap.data().items : [];
       const orderId = snap.id;
-      for (const item of items) {
-        if (item.isStockDeducted !== true) continue;
-        const qty = toInt(item.qty);
-        const stockRef = item.variantId
-          ? db.collection('product_variants').doc(String(item.variantId))
-          : db.collection('products').doc(String(item.productId));
-        const stockSnap = await tx.get(stockRef);
-        if (!stockSnap.exists) continue;
-        const balanceAfter = toInt(stockSnap.get('stockQty')) + qty;
-        tx.update(stockRef, { stockQty: balanceAfter, updatedAt: FieldValue.serverTimestamp() });
+      // Two lines can point at the same stock doc (e.g. the same product in two lines); accumulate
+      // so each movement reports the real balance instead of overwriting the previous one's figure.
+      const balances = new Map();
+      for (const entry of restorePlan) {
+        if (!entry.stockSnap.exists) continue;
+        const key = entry.stockRef.path;
+        const base = balances.has(key) ? balances.get(key) : toInt(entry.stockSnap.get('stockQty'));
+        const balanceAfter = base + entry.qty;
+        balances.set(key, balanceAfter);
+        tx.update(entry.stockRef, { stockQty: balanceAfter, updatedAt: FieldValue.serverTimestamp() });
         tx.set(db.collection('inventory_movements').doc(), {
-          productId: item.productId, variantId: item.variantId || null, kind: 'cancelRestore', quantity: qty,
+          productId: entry.item.productId, variantId: entry.item.variantId || null, kind: 'cancelRestore', quantity: entry.qty,
           balanceAfter, orderId, reason: 'cancellation', reference: snap.data().orderNumber, actorUid: actor.uid,
           createdAt: FieldValue.serverTimestamp(),
         });
       }
-      tx.update(ref, { items: snap.data().items.map((i) => ({ ...i, isStockDeducted: false })) });
+      tx.update(ref, { items: items.map((i) => ({ ...i, isStockDeducted: false })) });
     }
   });
 
@@ -703,8 +727,16 @@ exports.adminOrderRefund = onCall(async (request) => {
     if (amountPaise > paid) fail('failed-precondition', 'Refund cannot exceed the amount paid.');
     await db.runTransaction(async (tx) => {
       const s = await tx.get(ref);
+      if (!s.exists) fail('not-found', 'Order not found.');
       const current = { ...s.data().totals };
-      current.refundedPaise = toInt(current.refundedPaise) + amountPaise;
+      const alreadyRefunded = toInt(current.refundedPaise);
+      const remainingPaise = toInt(current.paidPaise) - alreadyRefunded;
+      // The outer check only sees a stale snapshot; this one runs under the transaction lock, so
+      // two concurrent partial refunds cannot together exceed what the customer actually paid.
+      if (amountPaise > remainingPaise) {
+        fail('failed-precondition', `Refund cannot exceed the unrefunded amount (${remainingPaise} paise).`);
+      }
+      current.refundedPaise = alreadyRefunded + amountPaise;
       tx.update(ref, {
         'totals.refundedPaise': current.refundedPaise,
         paymentStatus: current.refundedPaise >= toInt(current.paidPaise) ? 'refunded' : 'partiallyRefunded',
@@ -953,9 +985,10 @@ exports.adminWholesaleDecide = onCall(async (request) => {
     const uid = app.data().uid;
 
     await db.runTransaction(async (tx) => {
-      tx.update(appRef, { status: decision, reviewNote: String(data.note || ''), reviewedBy: caller.uid, reviewedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      // The user read must precede the application update: a tx.get after any write is rejected.
       const userRef = db.collection('users').doc(uid);
       const userSnap = await tx.get(userRef);
+      tx.update(appRef, { status: decision, reviewNote: String(data.note || ''), reviewedBy: caller.uid, reviewedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       // ONLY an approved application grants wholesale pricing: role flips to wholesale on approval;
       // rejection leaves the customer role intact but records the status.
       tx.update(userRef, {

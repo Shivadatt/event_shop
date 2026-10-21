@@ -181,10 +181,14 @@ final class StoreSettings {
     return digits.isEmpty ? '' : 'https://wa.me/$digits';
   }
 
+  /// A document written by `adminSettingsSave` can carry only some of these fields. Each one falls
+  /// back to the value this model already declares — never to a thrown read — so a sparse document
+  /// renders as the brand's own default rather than as a blank, and `isLive` stays the only signal
+  /// that the storefront is showing fallback values instead of the store's answers.
   factory StoreSettings.fromMap(Map<String, dynamic> m) => StoreSettings(
         id: readStringOrEmpty(m, 'id').isEmpty ? 'store' : readStringOrEmpty(m, 'id'),
-        shopName: readStringOrEmpty(m, 'shopName'),
-        tagline: readStringOrEmpty(m, 'tagline'),
+        shopName: readString(m, 'shopName') ?? StoreSettings.fallback.shopName,
+        tagline: readString(m, 'tagline') ?? StoreSettings.fallback.tagline,
         description: readStringOrEmpty(m, 'description'),
         addressLine1: readStringOrEmpty(m, 'addressLine1'),
         addressLine2: readStringOrEmpty(m, 'addressLine2'),
@@ -197,7 +201,7 @@ final class StoreSettings {
         openingHours: readStringOrEmpty(m, 'openingHours'),
         googleMapsUrl: readStringOrEmpty(m, 'googleMapsUrl'),
         gstNumber: readStringOrEmpty(m, 'gstNumber'),
-        invoicePrefix: readStringOrEmpty(m, 'invoicePrefix'),
+        invoicePrefix: readString(m, 'invoicePrefix') ?? StoreSettings.fallback.invoicePrefix,
         socialLinks: Map<String, String>.fromEntries(
           readMap(m, 'socialLinks').entries.map((e) => MapEntry(e.key, '${e.value}')),
         ),

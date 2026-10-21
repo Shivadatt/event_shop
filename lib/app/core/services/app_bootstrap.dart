@@ -38,6 +38,8 @@ abstract final class AppBootstrap {
       _last ?? const BootstrapReport(firebaseReady: false, supabaseReady: false);
 
   static Future<BootstrapReport> run() async {
+    assertNoPrivilegedKeyInBundle();
+
     final missing = Env.missingKeys();
     if (missing.isNotEmpty && !Env.hasFirebase && !Env.hasSupabase) {
       _last = BootstrapReport.notConfigured(missing);
@@ -125,6 +127,34 @@ abstract final class AppBootstrap {
       missing: missing,
     );
     return _last!;
+  }
+
+  /// Fail fast when a privileged Supabase credential reached the client bundle.
+  ///
+  /// This is the only thing standing between a mis-typed `--dart-define` and a public `main.dart.js`
+  /// that contains a service-role key: `String.fromEnvironment` inlines the literal at build time, so
+  /// nothing else in the app can tell afterwards, and every storage policy in
+  /// `docs/supabase-storage.md` is written so that key bypasses it entirely.
+  ///
+  /// It throws rather than returning a failed [BootstrapReport], because `main()` renders the whole
+  /// store whenever `report.firebaseReady` is true — a report nobody reads is not an abort. Callers
+  /// that want a screen instead of a dead bundle must catch this explicitly.
+  ///
+  /// [serviceRoleKey] / [anonKey] are seams for the guard's own test: a build-time constant cannot be
+  /// varied from a test, so the values can be handed in. Omit them to check this bundle.
+  static void assertNoPrivilegedKeyInBundle({
+    String? serviceRoleKey,
+    String? anonKey,
+  }) {
+    final forbidden = serviceRoleKey ?? Env.supabaseServiceRoleKey;
+    final privileged =
+        forbidden.isNotEmpty || Env.isPrivilegedClientKey(anonKey ?? Env.supabaseAnonKey);
+    if (!privileged) return;
+    const failure =
+        'SUPABASE_SERVICE_ROLE_KEY must not be compiled into the client — rebuild without it and '
+        'keep it in Firebase Functions config only.';
+    _last = const BootstrapReport(firebaseReady: false, supabaseReady: false, failure: failure);
+    throw StateError(failure);
   }
 
   /// Firebase auth errors carry provider text that is not for end users; log the detail, keep the

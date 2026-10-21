@@ -1,0 +1,16 @@
+{
+  "_comment": "Disposable P0 feasibility spike. Not part of the app, not part of functions/, never deployed. See README.md.",
+  "tasks": {
+    "emulator": "deno run --allow-env --allow-net --allow-read probe.ts --target=emulator",
+    "live-read": "deno run --allow-env --allow-net --allow-read probe.ts --target=live",
+    "live-write": "deno run --allow-env --allow-net --allow-read probe.ts --target=live --allow-live-write",
+    "check": "deno check probe.ts"
+  },
+  "imports": {
+    "jose": "npm:jose@^5.9.6"
+  },
+  "lock": false,
+  "fmt": {
+    "lineWidth": 110
+  }
+}

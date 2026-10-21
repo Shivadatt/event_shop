@@ -9,16 +9,10 @@ function contains(slab, qty) {
   return qty >= slab.minQty && (slab.maxQty == null || qty <= slab.maxQty);
 }
 
-// saleFrom / saleTo arrive as Firestore Timestamps, Dates, epoch millis, or null. Accept every
-// shape so a snapshot written by another path cannot crash a price computation.
-function toMillis(value) {
-  if (value == null) return null;
-  if (typeof value === 'number') return value;
-  if (value instanceof Date) return value.getTime();
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value._seconds === 'number') return value._seconds * 1000;
-  return null;
-}
+// saleFrom / saleTo arrive as Firestore Timestamps, Dates, epoch millis, ISO strings, or null.
+// Accept every shape so a snapshot written by another path cannot crash a price computation. The
+// shared helper lives in lib/coerce.js so the coupon window check uses the exact same tolerance.
+const { toMillis } = require('./coerce');
 
 // Mirrors Product.isSaleLive + Product.basePricePaise: the shelf price a line discounts from.
 // Date-less sales are deterministic so the shared fixture carries no wall-clock dependency.

@@ -121,10 +121,15 @@ final class FirestoreAccountRepository
     final out = <Product>[];
     for (var i = 0; i < ids.length; i += 30) {
       final chunk = ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30);
-      final snap = await Collections.products_
+      // Retail rules only allow active, non-wholesale rows, and a list query must constrain
+      // every field its rule inspects; without the second filter Firestore denies the batch.
+      Query<Map<String, dynamic>> q = Collections.products_
           .where(FieldPath.documentId, whereIn: chunk)
-          .where('status', isEqualTo: ProductStatus.active.code)
-          .get();
+          .where('status', isEqualTo: ProductStatus.active.code);
+      if (!_session.hasWholesalePricing) {
+        q = q.where('isWholesaleOnly', isEqualTo: false);
+      }
+      final snap = await q.get();
       out.addAll(FirestoreConverters.products(snap.docs));
     }
     return out;

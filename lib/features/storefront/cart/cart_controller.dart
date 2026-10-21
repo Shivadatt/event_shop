@@ -108,11 +108,26 @@ final class CartController extends GetxController {
         .whereType<String>()
         .toSet()
         .where((id) => !variants.containsKey(id));
-    for (final id in variantIds) {
-      final variant = await safeCall<ProductVariant>(
-        () => Get.find<VariantRepository>().byId(id),
-      );
-      if (variant != null) variants[id] = variant;
+    if (variantIds.isNotEmpty) {
+      // `variantRepository.byId` is a direct read of the staff-only variant collection (it carries
+      // cost price). Resolve through `forProduct`, whose non-staff path is the cost-stripped
+      // callable, grouping by parent so each product costs one call.
+      final idsByProduct = <String, Set<String>>{};
+      for (final line in _cart.lines) {
+        final variantId = line.variantId;
+        if (variantId != null && variantIds.contains(variantId)) {
+          idsByProduct.putIfAbsent(line.productId, () => <String>{}).add(variantId);
+        }
+      }
+      for (final entry in idsByProduct.entries) {
+        final list = await safeCall<List<ProductVariant>>(
+          () => Get.find<VariantRepository>().forProduct(entry.key),
+        );
+        if (list == null) continue;
+        for (final variant in list) {
+          if (entry.value.contains(variant.id)) variants[variant.id] = variant;
+        }
+      }
     }
   }
 

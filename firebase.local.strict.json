@@ -1,0 +1,35 @@
+﻿{
+    "//":  "LOCAL DEMO ONLY â€” never deploy this file. It points the emulator at the same strict firestore.rules as production. Seeding uses the emulator's Bearer owner bypass (scripts/local/seed_local_store.mjs), not permissive rules. This file exists only to keep the demo's emulator ports out of the deploy path.",
+    "firestore":  {
+                      "indexes":  "firestore.indexes.json",
+                      "rules":  "firestore.rules"
+                  },
+    "functions":  [
+                      {
+                          "source":  "functions",
+                          "codebase":  "default",
+                          "runtime":  "nodejs20",
+                          "ignore":  [
+                                         "node_modules",
+                                         ".git",
+                                         "*.local"
+                                     ]
+                      }
+                  ],
+    "emulators":  {
+                      "auth":  {
+                                   "port":  9099
+                               },
+                      "firestore":  {
+                                        "port":  8080
+                                    },
+                      "functions":  {
+                                        "port":  5001
+                                    },
+                      "ui":  {
+                                 "enabled":  true,
+                                 "port":  4000
+                             },
+                      "singleProjectMode":  true
+                  }
+}
