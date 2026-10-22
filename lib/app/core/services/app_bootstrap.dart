@@ -24,8 +24,11 @@ final class BootstrapReport {
   bool get isComplete => firebaseReady && supabaseReady && failure == null;
   bool get isPartial => firebaseReady || supabaseReady;
 
-  static BootstrapReport notConfigured(List<String> missing) =>
-      BootstrapReport(firebaseReady: false, supabaseReady: false, missing: missing);
+  static BootstrapReport notConfigured(List<String> missing) => BootstrapReport(
+    firebaseReady: false,
+    supabaseReady: false,
+    missing: missing,
+  );
 }
 
 /// Initialises the two backends from `--dart-define` values. Nothing is hardcoded and nothing is
@@ -35,7 +38,8 @@ abstract final class AppBootstrap {
   static BootstrapReport? _last;
 
   static BootstrapReport get report =>
-      _last ?? const BootstrapReport(firebaseReady: false, supabaseReady: false);
+      _last ??
+      const BootstrapReport(firebaseReady: false, supabaseReady: false);
 
   static Future<BootstrapReport> run() async {
     assertNoPrivilegedKeyInBundle();
@@ -65,8 +69,9 @@ abstract final class AppBootstrap {
               storageBucket: Env.firebaseStorageBucket.isEmpty
                   ? '${Env.firebaseProjectId}.appspot.com'
                   : Env.firebaseStorageBucket,
-              measurementId:
-                  Env.firebaseMeasurementId.isEmpty ? null : Env.firebaseMeasurementId,
+              measurementId: Env.firebaseMeasurementId.isEmpty
+                  ? null
+                  : Env.firebaseMeasurementId,
             ),
           );
         }
@@ -87,14 +92,21 @@ abstract final class AppBootstrap {
                 persistenceEnabled: true,
                 cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
               );
-        final functions = FirebaseFunctions.instanceFor(region: Env.functionsRegion);
+        final functions = FirebaseFunctions.instanceFor(
+          region: Env.functionsRegion,
+        );
         if (Env.useEmulators) {
           // Loopback, unencrypted, and only ever reached because the developer asked for it with
           // --dart-define=OM_USE_EMULATORS=true. Auth must be pointed at the emulator before the
           // first auth call, so it belongs here in initialisation rather than in a repository.
-          await FirebaseAuth.instance
-              .useAuthEmulator(Env.emulatorHost, Env.authEmulatorPort);
-          functions.useFunctionsEmulator(Env.emulatorHost, Env.functionsEmulatorPort);
+          await FirebaseAuth.instance.useAuthEmulator(
+            Env.emulatorHost,
+            Env.authEmulatorPort,
+          );
+          functions.useFunctionsEmulator(
+            Env.emulatorHost,
+            Env.functionsEmulatorPort,
+          );
         }
         firebaseReady = true;
       } catch (error, stack) {
@@ -148,12 +160,17 @@ abstract final class AppBootstrap {
   }) {
     final forbidden = serviceRoleKey ?? Env.supabaseServiceRoleKey;
     final privileged =
-        forbidden.isNotEmpty || Env.isPrivilegedClientKey(anonKey ?? Env.supabaseAnonKey);
+        forbidden.isNotEmpty ||
+        Env.isPrivilegedClientKey(anonKey ?? Env.supabaseAnonKey);
     if (!privileged) return;
     const failure =
         'SUPABASE_SERVICE_ROLE_KEY must not be compiled into the client — rebuild without it and '
         'keep it in Firebase Functions config only.';
-    _last = const BootstrapReport(firebaseReady: false, supabaseReady: false, failure: failure);
+    _last = const BootstrapReport(
+      firebaseReady: false,
+      supabaseReady: false,
+      failure: failure,
+    );
     throw StateError(failure);
   }
 

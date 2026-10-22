@@ -1,6 +1,7 @@
 'use strict';
 
-// Real-emulator regression coverage for the P0-3 transaction defects.
+// Real-emulator regression coverage for the P0-3 transaction defects and the Phase 2B order
+// integrity fixes.
 //
 // Unlike `functions/test/*.test.js` (which intercept the Admin SDK and therefore cannot model
 // Firestore's read-before-write rule), this suite runs the REAL callables inside the Functions
@@ -17,6 +18,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const admin = require('firebase-admin');
+
+const { allocateOrderNumber, annualCounterId } = require('../../lib/order_number');
 
 const PROJECT = process.env.OM_INTEGRATION_PROJECT || 'demo-om-events';
 const AUTH_EMULATOR_KEY = 'localhost-emulator-not-a-real-key';
@@ -37,8 +40,7 @@ const auth = admin.auth();
 const RUN = `${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
 const PASSWORD = 'Integration1!';
 const YEAR = new Date().getFullYear();
-const MONTH = String(new Date().getMonth() + 1).padStart(2, '0');
-const COUNTER_PATH = `counters/order-${YEAR}-${MONTH}`;
+const COUNTER_PATH = `counters/order-${YEAR}`;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -107,7 +109,12 @@ async function call(name, data, idToken) {
   throw new Error(`${name}: endpoint never became available (${lastBody})`);
 }
 
-function seedProduct({ id, stockQty = 5, retailPricePaise = 10000 }) {
+async function counterValue() {
+  const snap = await db.doc(COUNTER_PATH).get();
+  return snap.exists ? Number(snap.data().value || 0) : 0;
+}
+
+function seedProduct({ id, stockQty = 5, retailPricePaise = 10000, lowStockThreshold = 1 }) {
   return db.collection('products').doc(id).set({
     id,
     name: `Integration Widget ${id}`,
@@ -127,7 +134,7 @@ function seedProduct({ id, stockQty = 5, retailPricePaise = 10000 }) {
     minOrderQty: 1,
     orderMultiple: 1,
     stockQty,
-    lowStockThreshold: 1,
+    lowStockThreshold,
     status: 'active',
     isWholesaleOnly: false,
     soldCount: 0,
@@ -137,9 +144,35 @@ function seedProduct({ id, stockQty = 5, retailPricePaise = 10000 }) {
   });
 }
 
-function orderPayload({ productId, qty = 1, tag, couponCode = '', contactEmail = `guest.${RUN}.${tag}@example.test` }) {
+function seedVariant({ id, productId, stockQty = 5, retailPricePaise = 9000 }) {
+  return db.collection('product_variants').doc(id).set({
+    id,
+    productId,
+    name: `Integration Variant ${id}`,
+    sku: `IT-V-${id}`,
+    retailPricePaise,
+    salePricePaise: 0,
+    slabs: [],
+    images: [],
+    stockQty,
+    lowStockThreshold: 1,
+    isActive: true,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+function orderPayload({
+  productId,
+  variantId,
+  qty = 1,
+  tag,
+  couponCode = '',
+  contactEmail = `guest.${RUN}.${tag}@example.test`,
+  lines,
+}) {
+  const payloadLines = lines || [{ productId, ...(variantId ? { variantId } : {}), qty }];
   return {
-    lines: [{ productId, qty }],
+    lines: payloadLines,
     idempotencyKey: `itest-${RUN}-${tag}`,
     clientTotalPaise: 0,
     deliveryMode: 'pickup',
@@ -150,12 +183,28 @@ function orderPayload({ productId, qty = 1, tag, couponCode = '', contactEmail =
   };
 }
 
-test('monthly order counter is persisted and every order gets a distinct number', async () => {
+test('the first yearly number continues past the legacy monthly counter', async () => {
+  const productId = `itest_prod_legacy_${RUN}`;
+  await seedProduct({ id: productId, stockQty: 20 });
+  // Simulate the pre-fix state: only monthly counters exist, and January reached sequence 4.
+  await db.doc(COUNTER_PATH).delete();
+  await db.doc(`counters/order-${YEAR}-01`).set({
+    value: 4,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const receipt = await call('ordersCreate', orderPayload({ productId, tag: 'legacy-seed' }));
+  const seq = Number(receipt.orderNumber.split('-').pop());
+
+  assert.ok(seq >= 5, `the yearly counter must not restart at 1 (got ${receipt.orderNumber})`);
+  assert.equal(await counterValue(), seq, 'the yearly counter must be written inside the order transaction');
+});
+
+test('yearly order counter is persisted and every order gets a distinct number', async () => {
   const productId = `itest_prod_counter_${RUN}`;
   await seedProduct({ id: productId, stockQty: 20 });
 
-  const before = await db.doc(COUNTER_PATH).get();
-  const startSeq = before.exists ? Number(before.data().value || 0) : 0;
+  const startSeq = await counterValue();
 
   const first = await call('ordersCreate', orderPayload({ productId, tag: 'counter-a' }));
   const second = await call('ordersCreate', orderPayload({ productId, tag: 'counter-b' }));
@@ -164,18 +213,16 @@ test('monthly order counter is persisted and every order gets a distinct number'
   assert.match(second.orderNumber, /^OME-\d{4}-\d{6}$/);
   assert.notEqual(first.orderNumber, second.orderNumber, 'two orders must never share an order number');
 
-  const after = await db.doc(COUNTER_PATH).get();
-  assert.equal(after.exists, true, 'the monthly counter document must be written inside the order transaction');
-  assert.equal(Number(after.data().value), startSeq + 2);
-  assert.equal(Number(second.orderNumber.split('-').pop()), startSeq + 2);
+  const after = await counterValue();
+  assert.equal(after, startSeq + 2);
+  assert.equal(Number(second.orderNumber.split('-').pop()), after);
 });
 
-test('concurrent orders serialize on the monthly counter instead of minting the same number', async () => {
+test('concurrent orders serialize on the yearly counter instead of minting the same number', async () => {
   const productIds = [`itest_prod_conc_a_${RUN}`, `itest_prod_conc_b_${RUN}`, `itest_prod_conc_c_${RUN}`];
   await Promise.all(productIds.map((id) => seedProduct({ id, stockQty: 10 })));
 
-  const before = await db.doc(COUNTER_PATH).get();
-  const startSeq = before.exists ? Number(before.data().value || 0) : 0;
+  const startSeq = await counterValue();
 
   const receipts = await Promise.all(
     productIds.map((productId, index) => call('ordersCreate', orderPayload({ productId, tag: `concurrent-${index}` }))),
@@ -183,10 +230,144 @@ test('concurrent orders serialize on the monthly counter instead of minting the 
   const numbers = receipts.map((receipt) => receipt.orderNumber);
   assert.equal(new Set(numbers).size, numbers.length, 'concurrent orders must not share an order number');
 
-  const after = await db.doc(COUNTER_PATH).get();
-  assert.equal(Number(after.data().value), startSeq + numbers.length);
+  const after = await counterValue();
+  assert.equal(after, startSeq + numbers.length);
   const minted = numbers.map((number) => Number(number.split('-').pop())).sort((a, b) => a - b);
   assert.deepEqual(minted, Array.from({ length: numbers.length }, (_, i) => startSeq + i + 1));
+});
+
+test('the yearly number allocator does not reset at a month boundary', async () => {
+  const october = new Date(YEAR, 9, 31, 23, 30);
+  const november = new Date(YEAR, 10, 1, 0, 30);
+  assert.equal(annualCounterId(october), annualCounterId(november), 'both months use the same yearly counter');
+
+  const allocateAndPersist = (now) => db.runTransaction(async (tx) => {
+    const allocation = await allocateOrderNumber({ tx, db, prefix: 'OME', now });
+    tx.set(allocation.counterRef, { value: allocation.seq }, { merge: true });
+    return allocation;
+  });
+
+  const first = await allocateAndPersist(october);
+  const second = await allocateAndPersist(november);
+
+  assert.match(first.number, new RegExp(`^OME-${YEAR}-\\d{6}$`));
+  assert.notEqual(first.number, second.number, 'a month boundary must not restart the visible sequence');
+  assert.equal(second.seq, first.seq + 1);
+  assert.equal(await counterValue(), second.seq);
+});
+
+test('a visible number that already exists is never minted again', async () => {
+  const productId = `itest_prod_skip_${RUN}`;
+  await seedProduct({ id: productId, stockQty: 10 });
+
+  const nextSeq = (await counterValue()) + 1;
+  const blockedNumber = `OME-${YEAR}-${String(nextSeq).padStart(6, '0')}`;
+  await db.collection('orders').doc(`itest_blocked_${RUN}`).set({
+    orderNumber: blockedNumber,
+    userId: '',
+    isGuest: true,
+    status: 'placed',
+    items: [],
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const receipt = await call('ordersCreate', orderPayload({ productId, tag: 'skip-used' }));
+  const mintedSeq = Number(receipt.orderNumber.split('-').pop());
+  assert.ok(mintedSeq > nextSeq, `the existing ${blockedNumber} must be skipped`);
+  assert.equal(await counterValue(), mintedSeq);
+});
+
+test('duplicate product lines exceeding stock are rejected with no reservation', async () => {
+  const productId = `itest_prod_dup_over_${RUN}`;
+  await seedProduct({ id: productId, stockQty: 5 });
+  const startSeq = await counterValue();
+
+  await assert.rejects(
+    () => call('ordersCreate', orderPayload({
+      lines: [{ productId, qty: 3 }, { productId, qty: 3 }],
+      tag: 'dup-over',
+    })),
+    (error) => error.code === 'FAILED_PRECONDITION'
+      && error.details
+      && error.details.code === 'OUT_OF_STOCK'
+      && Number(error.details.available) === 5
+      && Number(error.details.requested) === 6,
+  );
+
+  assert.equal((await db.doc(`products/${productId}`).get()).data().stockQty, 5, 'stock must be unchanged');
+  assert.equal(await counterValue(), startSeq, 'a rejected order must not move the counter');
+  assert.equal((await db.doc(`idempotency_keys/itest-${RUN}-dup-over`).get()).exists, false);
+});
+
+test('duplicate product lines within stock reserve the combined quantity once', async () => {
+  const productId = `itest_prod_dup_ok_${RUN}`;
+  await seedProduct({ id: productId, stockQty: 10, lowStockThreshold: 8 });
+
+  const receipt = await call('ordersCreate', orderPayload({
+    lines: [{ productId, qty: 3 }, { productId, qty: 3 }],
+    tag: 'dup-ok',
+  }));
+
+  const product = await db.doc(`products/${productId}`).get();
+  assert.equal(product.data().stockQty, 4, 'the combined six units must be reserved once');
+  assert.equal(product.data().soldCount, 6);
+
+  const order = await db.doc(`orders/${receipt.orderId}`).get();
+  assert.deepEqual(order.data().items.map((item) => item.qty), [3, 3], 'per-line items must be preserved');
+
+  const movements = await db.collection('inventory_movements').where('orderId', '==', receipt.orderId).get();
+  const sales = movements.docs.map((doc) => doc.data()).filter((move) => move.kind === 'saleOut');
+  assert.equal(sales.length, 2);
+  assert.deepEqual(sales.map((move) => Number(move.quantity)).sort((a, b) => a - b), [3, 3]);
+  assert.deepEqual(sales.map((move) => Number(move.balanceAfter)).sort((a, b) => a - b), [4, 7]);
+
+  const alert = await db.doc(`inventory_alerts/${productId}_base`).get();
+  assert.equal(alert.exists, true);
+  assert.equal(alert.data().balanceAfter, 4, 'the alert must use the post-reservation balance, not a stale one');
+});
+
+test('duplicate lines reaching one variant stock document are aggregated', async () => {
+  const productA = `itest_prod_var_a_${RUN}`;
+  const productB = `itest_prod_var_b_${RUN}`;
+  const variantId = `itest_variant_dup_${RUN}`;
+  await seedProduct({ id: productA, stockQty: 50 });
+  await seedProduct({ id: productB, stockQty: 50 });
+  await seedVariant({ id: variantId, productId: productA, stockQty: 5 });
+  const startSeq = await counterValue();
+
+  await assert.rejects(
+    () => call('ordersCreate', orderPayload({
+      lines: [
+        { productId: productA, variantId, qty: 4 },
+        { productId: productB, variantId, qty: 4 },
+      ],
+      tag: 'dup-variant',
+    })),
+    (error) => error.code === 'FAILED_PRECONDITION'
+      && error.details
+      && error.details.code === 'OUT_OF_STOCK'
+      && Number(error.details.available) === 5
+      && Number(error.details.requested) === 8,
+  );
+
+  assert.equal((await db.doc(`product_variants/${variantId}`).get()).data().stockQty, 5);
+  assert.equal(await counterValue(), startSeq);
+});
+
+test('a rejected order leaves the yearly counter and stock untouched', async () => {
+  const productId = `itest_prod_reject_${RUN}`;
+  await seedProduct({ id: productId, stockQty: 5 });
+  const startSeq = await counterValue();
+
+  await assert.rejects(
+    () => call('ordersCreate', orderPayload({ productId, qty: 6, tag: 'reject-single' })),
+    (error) => error.code === 'FAILED_PRECONDITION',
+  );
+
+  assert.equal((await db.doc(`products/${productId}`).get()).data().stockQty, 5);
+  assert.equal(await counterValue(), startSeq);
+  assert.equal((await db.doc(`idempotency_keys/itest-${RUN}-reject-single`).get()).exists, false);
 });
 
 test('coupon redemption commits in one transaction and increments the per-user record', async () => {

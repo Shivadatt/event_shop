@@ -15,6 +15,7 @@ const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 // Shared coercion helpers (no Admin SDK dependency) so lib/pricing.js and lib/checkout.js and this
 // module cannot drift on how a paise amount is read out of a document or a callable payload.
 const { toInt } = require('./coerce');
+const { orderNumber } = require('./order_number');
 
 // The Functions runtime initialises the Admin SDK from ADC; do not hardcode a project id.
 admin.initializeApp();
@@ -54,12 +55,6 @@ function normaliseCode(input) {
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, '');
-}
-
-// Order numbers are minted server-side only, never by the browser.
-function orderNumber(prefix, year, seq) {
-  const padded = String(seq).padStart(6, '0');
-  return `${prefix || 'OME'}-${year}-${padded}`;
 }
 
 // ---- Caller authentication + role resolution ------------------------------------------------

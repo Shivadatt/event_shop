@@ -418,8 +418,8 @@ The local emulator cannot substitute for this: it does not require composite ind
 
 ## 9. Follow-ups recorded, intentionally not changed
 
-1. **Duplicate product lines in one order may over-reserve stock.** If the same product appears on multiple order lines, each line may be validated against the same pre-decrement balance. Recommendation: add a transaction regression test with duplicate lines, then fix the aggregation. Not changed in Phase 2A.
-2. **Monthly order counters can duplicate order numbers across months.** The visible order number includes the year but not the month, so a counter reset each month can produce the same visible number in two months. Recommendation: decide the numbering format (include month, or use a monotonic counter) and add regression tests. Not changed in Phase 2A.
+1. **Duplicate product lines in one order may over-reserve stock.** Fixed in Phase 2B: `ordersCreate` now aggregates demand by inventory document before validating and writes one aggregated decrement, while order items keep their per-line presentation. Covered by real-emulator regression tests.
+2. **Monthly order counters can duplicate order numbers across months.** Fixed in Phase 2B without changing the public `PREFIX-YYYY-NNNNNN` format: the counter is now annual (`counters/order-YYYY`), seeded from the highest legacy monthly counter for the year and guarded against existing visible numbers. Legacy monthly counters are no longer written.
 
 ## 10. Integrity statement
 

@@ -150,7 +150,9 @@ Some functions read a document that must exist before the store behaves correctl
   `allowGuestCheckout`. `functions/lib/server.js` falls back to `{}` (tax 0, pickup allowed) if it is
   missing, and the Dart `StoreSettings.fallback` mirrors that. Create it from the admin Settings screen
   (calls `adminSettingsSave`) or seed it in the console.
-- `counters/order-YYYY-MM` — minted automatically on first order; do not pre-create.
+- `counters/order-YYYY` — the annual order counter, minted automatically on first order; do not
+  pre-create. Legacy `counters/order-YYYY-MM` documents are read once to continue the sequence and
+  are no longer written.
 - The first **owner** user: sign up in the app (which runs `accountEnsure` → role `customer`), then in
   the Firestore console set `users/<uid>.role = "owner"`. Roles are document-authoritative; custom
   claims are only an advisory mirror.

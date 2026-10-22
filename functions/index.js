@@ -28,7 +28,6 @@ const {
   toInt,
   newId,
   normaliseCode,
-  orderNumber,
   requireCaller,
   requireRole,
   callerProfile,
@@ -46,6 +45,7 @@ const { keyPointsToOwnedOrder, mayReadReplay, mayReplayCreatedOrder, receiptFrom
 // of being re-implemented below. `couponsQuote` (the preview) and `ordersCreate` (the charge) must not
 // be able to disagree about what a cart costs or whether a pincode is deliverable.
 const { couponDiscount, shippingFor, totalsToReceipt, isValidPincode, priceAgreement } = require('./lib/checkout');
+const { allocateOrderNumber } = require('./lib/order_number');
 
 setGlobalOptions({ region: REGION, maxInstances: 10 });
 
@@ -162,6 +162,9 @@ exports.ordersCreate = onCall(async (request) => {
 
       // ---- re-price EVERY line from persisted slabs (never trust a client price)
       const priced = [];
+      // Demand is aggregated by the inventory document, not by line: two lines can name the same
+      // product (or the same variant document) and must not each validate against the same balance.
+      const stockGroups = new Map();
       for (const line of lines) {
         const productId = String(line.productId);
         const variantId = line.variantId ? String(line.variantId) : null;
@@ -173,11 +176,12 @@ exports.ordersCreate = onCall(async (request) => {
         if (product.status !== 'active') fail('failed-precondition', `${product.name} is not available.`);
         if (product.isWholesaleOnly === true && !wholesale) fail('permission-denied', `${product.name} is wholesale-only.`);
 
+        let variantSnap = null;
         let variant = null;
         if (variantId) {
-          const vSnap = await tx.get(db.collection('product_variants').doc(variantId));
-          if (!vSnap.exists) fail('not-found', 'Variant not found.');
-          variant = vSnap.data();
+          variantSnap = await tx.get(db.collection('product_variants').doc(variantId));
+          if (!variantSnap.exists) fail('not-found', 'Variant not found.');
+          variant = variantSnap.data();
           if (variant.isActive === false) fail('failed-precondition', 'Variant unavailable.');
         }
 
@@ -221,20 +225,41 @@ exports.ordersCreate = onCall(async (request) => {
           productRef: productSnap.ref,
           variantRef: variantId ? db.collection('product_variants').doc(variantId) : null,
           stockField: 'stockQty',
-          stockSnap: variant ? (await tx.get(db.collection('product_variants').doc(variantId))) : productSnap,
+          stockSnap: variantSnap || productSnap,
           lowStockThreshold: toInt(product.lowStockThreshold, 5),
           productName: product.name,
         });
+
+        const stockPath = (variantSnap || productSnap).ref.path;
+        let group = stockGroups.get(stockPath);
+        if (!group) {
+          group = {
+            stockSnap: variantSnap || productSnap,
+            stockField: 'stockQty',
+            current: toInt((variantSnap || productSnap).get('stockQty')),
+            requestedQty: 0,
+            soldCountDelta: 0,
+            productId,
+            variantId,
+            productName: product.name,
+          };
+          stockGroups.set(stockPath, group);
+        }
+        group.requestedQty += qty;
+        if (!variantId) group.soldCountDelta += qty;
       }
 
       // ---- atomic stock reservation: read balance in-tx, refuse if short, decrement in-tx.
       // Two concurrent buyers on the last unit serialize here; the loser re-runs and sees the new
-      // (insufficient) balance, so neither oversells.
-      for (const line of priced) {
-        const current = toInt(line.stockSnap.get(line.stockField));
-        if (current < line.qty) {
-          fail('failed-precondition', `${line.productName}: only ${current} available.`, {
-            code: 'OUT_OF_STOCK', productId: line.productId, available: current, requested: line.qty,
+      // (insufficient) balance, so neither oversells. Duplicate lines are validated against the
+      // SUM demanded from the same inventory document, so they cannot each pass a stale balance.
+      for (const group of stockGroups.values()) {
+        if (group.current < group.requestedQty) {
+          fail('failed-precondition', `${group.productName}: only ${group.current} available.`, {
+            code: 'OUT_OF_STOCK',
+            productId: group.productId,
+            available: group.current,
+            requested: group.requestedQty,
           });
         }
       }
@@ -308,30 +333,43 @@ exports.ordersCreate = onCall(async (request) => {
         });
       }
 
-      // ---- order number from a monthly counter, incremented inside the tx (no dupes)
-      const year = new Date().getFullYear();
-      const month = String(new Date().getMonth() + 1).padStart(2, '0');
-      const counterRef = db.collection('counters').doc(`order-${year}-${month}`);
-      const counterSnap = await tx.get(counterRef);
-      const seq = toInt(counterSnap.exists ? counterSnap.data().value : 0) + 1;
-      const number = orderNumber(settings.invoicePrefix || 'OME', year, seq);
-      // Persist the sequence in the same transaction as the order. Without this write every order in
-      // the month read value=0 and minted the identical OME-YYYY-000001; concurrent creates serialize
-      // on this document, so a retry re-reads the winner's value before minting the next number.
-      tx.set(counterRef, { value: seq, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      // ---- order number from a yearly counter, incremented inside the tx (no dupes). The public
+      // PREFIX-YYYY-NNNNNN format is unchanged, but the counter no longer resets every month; that
+      // reset was what let two months of the same year mint the same visible number.
+      let allocation;
+      try {
+        allocation = await allocateOrderNumber({
+          tx, db, prefix: settings.invoicePrefix || 'OME', now: new Date(),
+        });
+      } catch (error) {
+        if (error && error.code === 'failed-precondition') fail('failed-precondition', error.message);
+        throw error;
+      }
+      const number = allocation.number;
+      // Persist the sequence in the same transaction as the order. Concurrent creates serialize on
+      // this document, so a retry re-reads the winner's value before minting the next number.
+      tx.set(allocation.counterRef, { value: allocation.seq, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
       const paymentStatus = paymentMethod === 'cod' ? 'codPending' : paymentMethod === '' ? 'pending' : 'pending';
       const createdAt = FieldValue.serverTimestamp();
 
-      // ---- commit stock decrements + soldCount + movement ledger + notifications
+      // ---- commit one decrement per inventory document, plus per-line movement ledger rows.
+      // The aggregate write is what makes duplicate lines safe: stock is touched once with the
+      // summed quantity, while order items keep their original per-line pricing and presentation.
       const movements = [];
-      for (const line of priced) {
-        tx.update(line.stockSnap.ref, {
-          [line.stockField]: FieldValue.increment(-line.qty),
-          soldCount: line.variantRef ? FieldValue.increment(0) : FieldValue.increment(line.qty),
+      const runningBalances = new Map();
+      for (const [path, group] of stockGroups) {
+        tx.update(group.stockSnap.ref, {
+          [group.stockField]: FieldValue.increment(-group.requestedQty),
+          soldCount: FieldValue.increment(group.soldCountDelta),
           updatedAt: createdAt,
         });
-        const balanceAfter = toInt(line.stockSnap.get(line.stockField)) - line.qty;
+        runningBalances.set(path, group.current);
+      }
+      for (const line of priced) {
+        const path = line.stockSnap.ref.path;
+        const balanceAfter = runningBalances.get(path) - line.qty;
+        runningBalances.set(path, balanceAfter);
         const moveRef = db.collection('inventory_movements').doc();
         tx.set(moveRef, {
           productId: line.productId, variantId: line.variantId, kind: 'saleOut', quantity: line.qty,
