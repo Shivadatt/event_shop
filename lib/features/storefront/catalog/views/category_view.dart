@@ -17,37 +17,39 @@ final class CategoryView extends GetView<CatalogController> {
       title: 'Shop',
       body: Obx(() {
         final category = controller.category.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const SizedBox(height: OmSpacing.md),
-            if (category != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: OmSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    OmText(category.name, variant: OmTextVariant.h2),
-                    if (category.description.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: OmSpacing.sm),
-                      OmText(
-                        category.description,
-                        variant: OmTextVariant.muted,
-                        maxLines: 3,
-                        overflow: TextOverflow.visible,
-                      ),
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: OmSpacing.md),
+              if (category != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: OmSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      OmText(category.name, variant: OmTextVariant.h2),
+                      if (category.description.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: OmSpacing.sm),
+                        OmText(
+                          category.description,
+                          variant: OmTextVariant.muted,
+                          maxLines: 3,
+                          overflow: TextOverflow.visible,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.only(bottom: OmSpacing.lg),
+                  child: OmText('Shop all products', variant: OmTextVariant.h2),
                 ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.only(bottom: OmSpacing.lg),
-                child: OmText('Shop all products', variant: OmTextVariant.h2),
-              ),
-            CatalogResults(controller: controller),
-            const SizedBox(height: OmSpacing.xl),
-          ],
+              CatalogResults(controller: controller),
+              const SizedBox(height: OmSpacing.xl),
+            ],
+          ),
         );
       }),
     );

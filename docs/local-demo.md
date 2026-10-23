@@ -16,12 +16,14 @@ hunting for a Dart bug that does not exist.
 
 ```bash
 cd functions && npm install && cd ..
-npx --yes firebase-tools@13.35.1 emulators:start \
+FUNCTIONS_DISCOVERY_TIMEOUT=60 npx --yes firebase-tools@13.35.1 emulators:start \
   --config firebase.local.json --project demo-om-events \
   --only auth,firestore,functions
 ```
 
 Wait for `All emulators ready!`. Auth is on 9099, Firestore on 8080, Functions on 5001, Emulator UI on http://127.0.0.1:4000.
+
+`FUNCTIONS_DISCOVERY_TIMEOUT=60` is not optional here. The Functions emulator gives your source 10 seconds to export its callables by default; on this machine loading `functions/index.js` exceeds that, the log says `User code failed to load. Cannot determine backend specification. Timeout after 10000`, and the suite still reports "ready" with an **empty** function registry. Every callable then fails with `does not exist` — coupons return `internal`, and checkout and admin writes never run. If a callable reports that it does not exist, check the emulator log for that timeout before debugging Dart.
 
 **Start the Functions emulator too.** Signing in is not just an Auth call: `_ensure` invokes the
 `accountEnsure` callable to mint `users/{uid}`, and with 5001 closed the callable fails with
@@ -119,8 +121,8 @@ To exercise checkout and every admin write, add Functions:
 
 ```bash
 npm --prefix functions install
-npx --yes firebase-tools@13.35.1 emulators:start --config firebase.local.json \
-  --project demo-om-events --only auth,firestore,functions
+FUNCTIONS_DISCOVERY_TIMEOUT=60 npx --yes firebase-tools@13.35.1 emulators:start \
+  --config firebase.local.json --project demo-om-events --only auth,firestore,functions
 ```
 
 The emulator runs `functions/index.js` locally, so the same `requireRole` guard that protects

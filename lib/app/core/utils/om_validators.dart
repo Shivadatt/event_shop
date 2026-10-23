@@ -19,7 +19,7 @@ final class OmValidators {
   static String? phone(String? value) {
     final v = (value ?? '').trim().replaceAll(RegExp(r'[\s-]'), '');
     if (v.isEmpty) return 'Mobile number is required';
-    if (!RegExp(r'^\+?91?[6-9]\d{9}$').hasMatch(v)) return 'Enter a valid Indian mobile number';
+    if (!RegExp(r'^(?:\+91|91)?[6-9]\d{9}$').hasMatch(v)) return 'Enter a valid Indian mobile number';
     return null;
   }
 

@@ -27,7 +27,7 @@
 1. **P0-1 — Production environment is not wired, and the recorded plan cannot run the backend.** Owner-side notes from 2026-10-21 record `om-events-store` created with a Web app, Email/Password and Firestore `asia-south1`, but on **Spark**; this audit could not re-verify any of that. `.firebaserc` is still the placeholder (`REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID`), no production `--dart-define` file exists (gitignored), and Spark blocks deployment of all 39 callables + 3 triggers. Nothing can be deployed or live-tested as-is.
 2. **P0-2 — Composite indexes do not match the real storefront queries.** Every retail product query now adds `isWholesaleOnly == false`; `firestore.indexes.json` has only one wholesale-aware index. At least 20 product index shapes (category, shelves, price/rating/soldCount sorts, search keywords, tags, wishlist `documentId in`) plus admin order/audit combinations are absent. The emulator does not enforce indexes, so local green tests hide this.
 3. **P0-3 — Checkout/order transactions contain read-after-write and counter defects.** Coupon orders, cancellation stock restore and wholesale approval perform `tx.get` after a write inside the same Admin SDK transaction; the monthly order counter is read but never written. These fail only against real Firestore. The 104 green Functions tests use a fake transaction that explicitly allows reads after writes.
-4. **P0-4 — The committed hosting artifact is a demo build.** `build/web/main.dart.js` is an emulator-targeted bundle (contains `demo-om-events`, no real key), and `build/web/index.html`, `robots.txt`, `sitemap.xml` still contain **28 literal `{{SITE_ORIGIN}}` tokens** (11/3/14). There is no CI and no token-substitution script.
+4. **P0-4 — The committed hosting artifact is a demo build.** `build/web/main.dart.js` is an emulator-targeted bundle (contains `demo-om-events`, no real key), and `build/web/index.html`, `robots.txt`, `sitemap.xml` still contain **28 literal `SITE_ORIGIN` tokens** (11/3/14). There is no CI and no token-substitution script.
 5. **P0-5 — Admin media pipeline cannot work.** Firestore rules deny all `media_objects` writes (`firestore.rules:395-397`) while the uploader writes that ledger row *before* uploading; the gallery path writes `products/{id}.images` directly, which rules also deny; Supabase Storage is documented but not provisioned; the `mediaOptimise` callable is not deployed (and is dead code). Product images cannot be managed end-to-end.
 
 ### What is genuinely strong
@@ -261,12 +261,12 @@ The decisive change: every storefront product query now appends `isWholesaleOnly
 
 - **Hosting config:** `firebase.json` serves `build/web`, SPA rewrite `** → /index.html`, immutable asset caching, `cleanUrls`. The app uses hash routing, so the rewrite is harmless but indicative of copy-pasted config.
 - **Committed artifact is not production:** `build/web/main.dart.js` was built 2026-10-19, contains **3 × `demo-om-events`** and **0** real API keys / service-role keys. It is an emulator build.
-- **Unresolved deploy tokens:** `build/web/index.html` 11, `robots.txt` 3, `sitemap.xml` 14 = **28** literal `{{SITE_ORIGIN}}`. The repository has no substitution script.
+- **Unresolved deploy tokens:** `build/web/index.html` 11, `robots.txt` 3, `sitemap.xml` 14 = **28** literal `SITE_ORIGIN`. The repository has no substitution script.
 - **No CI:** no `.github/workflows`, no Vercel/Netlify config. Deploy is manual and undocumented beyond README build commands pointing at an absent `.env.production.json`.
 - **No wrong-project safeguard beyond the placeholder:** once `firebase use` rewrites `.firebaserc`, `test/security_hygiene_test.dart:134-153` will **fail**, because it accepts only `demo-*` or the placeholder. The documented setup and the test conflict; choose one policy (e.g. ignore a local, gitignored `.firebaserc`, or allow a `staging`/`production` alias).
 - **Exposure:** no CSP/security headers beyond cache headers; source maps are not part of `build/web` (no `.map` found in the served tree) but this was not exhaustively scanned.
 
-**Exact action:** add a deterministic build script that (1) passes production defines, (2) substitutes `{{SITE_ORIGIN}}` and fails if any token remains, (3) runs analyzer/tests, and (4) emits a smoke-testable artifact; wire it to CI with an explicit project alias.
+**Exact action:** add a deterministic build script that (1) passes production defines, (2) substitutes `SITE_ORIGIN` and fails if any token remains, (3) runs analyzer/tests, and (4) emits a smoke-testable artifact; wire it to CI with an explicit project alias.
 
 ---
 
@@ -544,7 +544,7 @@ By area, if you want single numbers: **local code ≈65 %**, **security verifica
 4. **Decision + local code — media architecture (P0-5).**
    Choose Supabase Storage (recommended) or Firebase Storage; implement a trusted writer for `media_objects` and product `images` (callable or Edge Function), provision the bucket and RLS from committed SQL, and fix the gallery commit path. Add tests; do not re-open client writes.
 5. **Local + CI — production build and auth bootstrap (P0-4, P1-1).**
-   Resolve/auth-await `AuthRepository` before `runApp`; add a reload test. Add a build script that passes production defines, substitutes `{{SITE_ORIGIN}}` and fails if any token remains, runs analyzer/tests/build scan, and emits an artifact suitable for a staging smoke test. Deploy only after explicit approval.
+   Resolve/auth-await `AuthRepository` before `runApp`; add a reload test. Add a build script that passes production defines, substitutes `SITE_ORIGIN` and fails if any token remains, runs analyzer/tests/build scan, and emits an artifact suitable for a staging smoke test. Deploy only after explicit approval.
 
 **Can be done entirely locally without touching production:** steps 2, 3 (file edits + emulator tests; index *verification* needs staging), 4 (code + SQL; bucket provisioning needs Supabase), 5 (build + auth fix). **Requires manual Console/external access:** project/app/Auth/billing facts, Blaze activation, Supabase project/bucket, and any deployment.
 

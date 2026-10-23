@@ -15,39 +15,42 @@ final class LoginView extends GetView<LoginController> {
 
   @override
   Widget build(BuildContext context) {
-    return AuthShell(
-      eyebrow: 'Members',
-      title: 'Sign in',
-      intro: 'Order history, saved addresses and wholesale pricing live behind this door.',
-      notice: controller.blockedNotice ??
-          (controller.isBlockedNotice
-              ? 'The link you followed needs an account the store has not put on hold.'
-              : null),
-      footer: <Widget>[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Expanded(
-              child: OmButton(
-                label: 'Create an account',
-                variant: OmButtonVariant.outline,
-                size: OmButtonSize.small,
-                onPressed: controller.goRegister,
+    return Obx(() {
+      final failure = controller.failure.value;
+      return AuthShell(
+        eyebrow: 'Members',
+        title: 'Sign in',
+        intro:
+            'Order history, saved addresses and wholesale pricing live behind this door.',
+        notice:
+            controller.blockedNotice ??
+            (controller.isBlockedNotice
+                ? 'The link you followed needs an account the store has not put on hold.'
+                : null),
+        footer: <Widget>[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Expanded(
+                child: OmButton(
+                  label: 'Create an account',
+                  variant: OmButtonVariant.outline,
+                  size: OmButtonSize.small,
+                  onPressed: controller.goRegister,
+                ),
               ),
-            ),
-            const SizedBox(width: OmSpacing.sm),
-            OmButton(
-              label: 'Forgot password?',
-              variant: OmButtonVariant.ghost,
-              size: OmButtonSize.small,
-              onPressed: controller.goForgotPassword,
-            ),
-          ],
-        ),
-      ],
-      child: Obx(() {
-        final failure = controller.failure.value;
-        return Form(
+              const SizedBox(width: OmSpacing.sm),
+              OmButton(
+                label: 'Forgot password?',
+                variant: OmButtonVariant.ghost,
+                size: OmButtonSize.small,
+                onPressed: controller.goForgotPassword,
+              ),
+            ],
+          ),
+        ],
+        failure: failure,
+        child: Form(
           key: controller.formKey,
           child: AutofillGroup(
             child: Column(
@@ -71,7 +74,8 @@ final class LoginView extends GetView<LoginController> {
                   textInputAction: TextInputAction.done,
                   autofillHints: const <String>[AutofillHints.password],
                   prefixIcon: Icons.lock_outline,
-                  validator: (value) => OmValidators.required(value, label: 'Password'),
+                  validator: (value) =>
+                      OmValidators.required(value, label: 'Password'),
                   onSubmitted: (_) => controller.submit(),
                   suffix: PasswordVisibilityToggle(
                     visible: controller.showPassword.value,
@@ -106,8 +110,8 @@ final class LoginView extends GetView<LoginController> {
               ],
             ),
           ),
-        );
-      }),
-    );
+        ),
+      );
+    });
   }
 }

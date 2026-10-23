@@ -79,7 +79,8 @@ final class OmTextField extends StatelessWidget {
       autofillHints: autofillHints,
       maxLength: maxLength,
       textCapitalization: switch (keyboardType) {
-        TextInputType.name || TextInputType.streetAddress => TextCapitalization.words,
+        TextInputType.name ||
+        TextInputType.streetAddress => TextCapitalization.words,
         TextInputType.emailAddress => TextCapitalization.none,
         _ => TextCapitalization.sentences,
       },
@@ -131,22 +132,24 @@ final class OmNumberField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OmTextField(
-        label: label,
-        controller: controller,
-        hint: hint,
-        helper: helper,
-        keyboardType: decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
-        validator: validator,
-        onChanged: onChanged,
-        required: required,
-        enabled: enabled,
-        suffix: suffixText == null
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(right: OmSpacing.md),
-                child: Text(suffixText!, style: context.omText.muted),
-              ),
-      );
+    label: label,
+    controller: controller,
+    hint: hint,
+    helper: helper,
+    keyboardType: decimal
+        ? const TextInputType.numberWithOptions(decimal: true)
+        : TextInputType.number,
+    validator: validator,
+    onChanged: onChanged,
+    required: required,
+    enabled: enabled,
+    suffix: suffixText == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(right: OmSpacing.md),
+            child: Text(suffixText!, style: context.omText.muted),
+          ),
+  );
 }
 
 /// Stepper that enforces the product's minimum quantity and order multiple. Holding the button
@@ -179,6 +182,7 @@ final class OmQuantityStepper extends StatefulWidget {
 
 class _OmQuantityStepperState extends State<OmQuantityStepper> {
   Timer? _repeat;
+  bool _repeating = false;
 
   int _clamp(int candidate) {
     var next = candidate;
@@ -192,15 +196,28 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
     return next;
   }
 
-  void _startRepeat(int delta) {
+  void _scheduleRepeat(int delta) {
     if (!widget.enabled) return;
-    _apply(widget.value + delta);
     _repeat?.cancel();
+    _repeating = false;
     _repeat = Timer(const Duration(milliseconds: 500), () {
+      _repeating = true;
+      _apply(widget.value + delta);
       _repeat = Timer.periodic(const Duration(milliseconds: 90), (_) {
         _apply(widget.value + delta);
       });
     });
+  }
+
+  void _cancelRepeat() {
+    _repeat?.cancel();
+    _repeat = null;
+  }
+
+  void _applyTap(int delta) {
+    _cancelRepeat();
+    if (!_repeating) _apply(widget.value + delta);
+    _repeating = false;
   }
 
   void _apply(int candidate) {
@@ -213,12 +230,14 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
   /// "Quantity for Latex Balloon Pack" leaves the customer unable to hear what it currently holds.
   String get _spokenLabel {
     final label = widget.label;
-    return label == null ? 'Quantity ${widget.value}' : '$label, ${widget.value}';
+    return label == null
+        ? 'Quantity ${widget.value}'
+        : '$label, ${widget.value}';
   }
 
   @override
   void dispose() {
-    _repeat?.cancel();
+    _cancelRepeat();
     super.dispose();
   }
 
@@ -235,7 +254,8 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
       children: <Widget>[
         _stepButton(
           icon: Icons.remove,
-          onTap: canDecrease ? () => _startRepeat(-widget.multiple) : null,
+          delta: -widget.multiple,
+          enabled: canDecrease,
           tooltip: 'Decrease quantity',
           height: height,
           isDark: isDark,
@@ -262,7 +282,8 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
         ),
         _stepButton(
           icon: Icons.add,
-          onTap: canIncrease ? () => _startRepeat(widget.multiple) : null,
+          delta: widget.multiple,
+          enabled: canIncrease,
           tooltip: 'Increase quantity',
           height: height,
           isDark: isDark,
@@ -273,45 +294,55 @@ class _OmQuantityStepperState extends State<OmQuantityStepper> {
 
   Widget _stepButton({
     required IconData icon,
-    required VoidCallback? onTap,
+    required int delta,
+    required bool enabled,
     required String tooltip,
     required double height,
     required bool isDark,
-  }) =>
-      Tooltip(
-        message: tooltip,
-        // A tooltip is a description, not an accessible name: without the label on the node a
-        // voice-control customer cannot say "tap Increase quantity". Same shape as OmIconButton.
-        child: Semantics(
-          button: true,
-          label: tooltip,
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              height: height,
-              width: height,
-              child: Icon(
-                icon,
-                size: 18,
-                color: onTap == null
-                    ? Theme.of(context).disabledColor
-                    : (isDark ? OmColors.textOnDark : OmColors.textPrimary),
-              ),
-            ),
+  }) => Tooltip(
+    message: tooltip,
+    // A tooltip is a description, not an accessible name: without the label on the node a
+    // voice-control customer cannot say "tap Increase quantity". Same shape as OmIconButton.
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      child: InkWell(
+        // A quick tap steps once via onTap; a held press repeats after 500 ms. The timer must
+        // be cancelled when the pointer leaves or lifts, or one tap keeps stepping forever.
+        onTap: enabled ? () => _applyTap(delta) : null,
+        onTapDown: enabled ? (_) => _scheduleRepeat(delta) : null,
+        onTapUp: enabled ? (_) => _cancelRepeat() : null,
+        onTapCancel: enabled
+            ? () {
+                _cancelRepeat();
+                _repeating = false;
+              }
+            : null,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          height: height,
+          width: height,
+          child: Icon(
+            icon,
+            size: 18,
+            color: enabled
+                ? (isDark ? OmColors.textOnDark : OmColors.textPrimary)
+                : Theme.of(context).disabledColor,
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 extension on Widget {
   Widget wrapWithBorder(BuildContext context, double height) => DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: OmRadius.smAll,
-        ),
-        child: SizedBox(height: height, child: this),
-      );
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).dividerColor),
+      borderRadius: OmRadius.smAll,
+    ),
+    child: SizedBox(height: height, child: this),
+  );
 }
 
 final class OmDropdown<T> extends StatelessWidget {
@@ -338,21 +369,21 @@ final class OmDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DropdownButtonFormField<T>(
-        initialValue: value,
-        items: items
-            .map(
-              (item) => DropdownMenuItem<T>(
-                value: item,
-                child: Text(itemLabel?.call(item) ?? '$item'),
-              ),
-            )
-            .toList(growable: false),
-        onChanged: enabled ? onChanged : null,
-        validator: validator,
-        hint: hint == null ? null : Text(hint!),
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label),
-      );
+    initialValue: value,
+    items: items
+        .map(
+          (item) => DropdownMenuItem<T>(
+            value: item,
+            child: Text(itemLabel?.call(item) ?? '$item'),
+          ),
+        )
+        .toList(growable: false),
+    onChanged: enabled ? onChanged : null,
+    validator: validator,
+    hint: hint == null ? null : Text(hint!),
+    isExpanded: true,
+    decoration: InputDecoration(labelText: label),
+  );
 }
 
 final class OmSwitchRow extends StatelessWidget {
@@ -371,13 +402,13 @@ final class OmSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SwitchListTile.adaptive(
-        value: value,
-        onChanged: onChanged,
-        title: Text(label, style: context.omText.bodyStrong),
-        subtitle: description == null
-            ? null
-            : Text(description!, style: context.omText.caption),
-        contentPadding: EdgeInsets.zero,
-        activeThumbColor: OmColors.gold,
-      );
+    value: value,
+    onChanged: onChanged,
+    title: Text(label, style: context.omText.bodyStrong),
+    subtitle: description == null
+        ? null
+        : Text(description!, style: context.omText.caption),
+    contentPadding: EdgeInsets.zero,
+    activeThumbColor: OmColors.gold,
+  );
 }
